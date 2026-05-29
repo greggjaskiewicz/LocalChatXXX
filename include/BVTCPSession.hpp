@@ -487,6 +487,54 @@ public:
         );
     }
 
+    // Synchronous, blocking write of one file-chunk frame, used by the file
+    // transfer worker thread. Sending chunks strictly one-at-a-time on a stable
+    // local buffer avoids the overlapping async_write + reallocating shared
+    // writeBuf that corrupted the stream (truncated/garbled transfers). TCP's
+    // own flow control supplies the back-pressure, so no inter-chunk sleep is
+    // needed. Returns false on error.
+    bool WriteFileChunkSync(const BVTCPFileChunk& chunk, const std::size_t payloadBytes)
+    {
+        constexpr std::size_t headerSize = FILE_HEADER_SIZE_BYTES;
+        if (payloadBytes > std::numeric_limits<uint32_t>::max())
+        {
+            LogError("Session [{}]: WriteFileChunkSync: payload too large: {}",
+                this->sessionData_p->sessionID, payloadBytes);
+            return false;
+        }
+        const std::size_t frameSize = headerSize + payloadBytes;
+        std::vector<char> frame(frameSize, 0); // zero-init -> last chunk is zero-padded
+        std::size_t offset = 0;
+        std::memcpy(frame.data() + offset, &chunk.header.correlationKey, sizeof(chunk.header.correlationKey));
+        offset += sizeof(chunk.header.correlationKey);
+        std::memcpy(frame.data() + offset, &chunk.header.timestamp, sizeof(chunk.header.timestamp));
+        offset += sizeof(chunk.header.timestamp);
+        std::memcpy(frame.data() + offset, &chunk.header.msgType, sizeof(chunk.header.msgType));
+        offset += sizeof(chunk.header.msgType);
+        std::memcpy(frame.data() + offset, &chunk.header.metadata, sizeof(chunk.header.metadata));
+        offset += sizeof(chunk.header.metadata);
+        if (payloadBytes > 0)
+        {
+            const std::size_t toCopy =
+                payloadBytes < chunk.payload.size() ? payloadBytes : chunk.payload.size();
+            std::memcpy(frame.data() + offset, chunk.payload.data(), toCopy);
+        }
+        // Blocking, transfers ALL bytes (composed op). One read + one write may
+        // run concurrently on a socket, which is the only overlap here.
+        boost::system::error_code ec;
+        boost::asio::write(*this->sessionData_p->sock,
+            boost::asio::buffer(frame.data(), frame.size()), ec);
+        if (ec)
+        {
+            LogError("Session [{}]: WriteFileChunkSync failed: {}, {}",
+                this->sessionData_p->sessionID, ec.value(), ec.message());
+            return false;
+        }
+        LogTrace("Session [{}]: Sync-wrote file frame {} bytes (payload {})",
+            this->sessionData_p->sessionID, frame.size(), payloadBytes);
+        return true;
+    }
+
     template<typename PayloadType>
     void WriteMessageFrame(const BVTCPMessage<PayloadType>& message)
     {

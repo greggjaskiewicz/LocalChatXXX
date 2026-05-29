@@ -45,229 +45,271 @@ BVComponent(_outMbx, _inMbx)
 
 void BVApp_ConsoleClient::Run(void)
 {
+    // Put the terminal in raw mode: no canonical line buffering and no kernel
+    // echo. We now read keystrokes one at a time and draw everything ourselves.
     this->terminal.SetNonCanonicalMode();
-    PrintAll();
-    while (this->GetIsRunning())
+
+    // Drive stdin through the same io_context that already handles the network.
+    // A keystroke and an incoming message then become two kinds of asio event
+    // handled on one thread, so the screen updates the moment a message arrives -
+    // no polling, and no locking around stdout.
+    // dup() so asio owns its own descriptor; toggling O_NONBLOCK on it does not
+    // disturb the tty shared with the rest of the process.
+    this->stdinDescriptor.emplace(GetIoContext(), ::dup(STDIN_FILENO));
+
+    this->uiState = UIState::MainMenu;
+    this->Render();
+    this->StartStdinRead();
+
+    // Run the event loop on the main thread; it returns when StopIOContext() is
+    // called on quit. Keys, network handlers and posted redraws all run here,
+    // single-threaded.
+    GetIoContext().run();
+
+    this->terminal.Restore();
+}
+
+void BVApp_ConsoleClient::StartStdinRead(void)
+{
+    if (!this->stdinDescriptor.has_value())
     {
-        // continue; // uncomment when debugging - this hangs the main thread.
-        ClearScreen();
-        PrintAll();
-        const char key = this->terminal.ReadChar();
-        auto action = ParseConsoleActionFromKey(key);
-        bool sendingFile = false;
-        if (!action.has_value())
+        return;
+    }
+    this->stdinDescriptor->async_read_some(
+        boost::asio::buffer(&this->readCh, 1),
+        [this](const boost::system::error_code& ec, std::size_t n)
         {
-            continue; // actions not handled
-        }
-        auto type = (*action).type;
-        switch (type)
-        {
-            case BVConsoleActionType::BVCONSOLEACTION_REPRINT:
-                PrintAll();
-                break;
-            case BVConsoleActionType::BVCONSOLEACTION_SENDMSG: // also views messages
+            if (ec)
             {
-                // send sendmsg event/message
-                // Choose host
-                bool runMessagingMenu = true;
-                LogTrace("App: Choosing sending message...");
-                const auto hostChosen = (*action).num;
-                if (hostChosen.has_value())
+                if (ec != boost::asio::error::operation_aborted)
                 {
-                    const int idx = hostChosen.value(); // this is only the idx in the vector!
-                    LogDebug("App: chosen idx: {}", idx);
-                    bool found = false;
-                    try {
-                        int nodeIdx = 0;
-                        std::string serviceName;
-                        for (const auto& [k,v] : this->GetConnectionManager().GetNodesM())
-                        {
-                            if (idx == nodeIdx)
-                            {
-                                found = true;
-                                serviceName = v.serviceName;
-                                LogDebug("App: At {} there's {}. Entering messaging menu.", nodeIdx, serviceName);
-                                while (runMessagingMenu)
-                                {
-                                    ClearScreen();
-                                    PrintAll();
-                                    {
-                                        std::lock_guard<std::mutex> l(chatLogsMapMutex);
-                                        BVChatMessageLog log;
-                                        try
-                                        {
-                                            log = chatLogsM.at(serviceName);
-                                            std::cout << "Message log with " << serviceName << std::endl;
-                                            log.PrintNLastMessages(TEN_LAST_MESSAGES);
-                                        }
-                                        catch(const std::out_of_range& e)
-                                        {
-                                            std::cout << "No messages with " << serviceName << " :)" << std::endl;
-                                        }
-                                    }
-                                    const std::string prompt("|q OR |r OR >> ");
-                                    const std::string msgStr = terminal.PromptLine(prompt);
-                                    LogDebug("App: Gotten msg string: {}", msgStr);
-                                    // split string after space
-                                    std::string argStr{};
-                                    std::string::size_type argPos = msgStr.find(' ');
-                                    if (argPos == 2)
-                                    {
-                                        argStr = msgStr.substr(argPos+1);
-                                    }
-                                    if (msgStr.length() == 2)
-                                    {
-                                        if (msgStr == "|q")
-                                        {
-                                            runMessagingMenu = false;
-                                            continue;
-                                        }
-                                        if (msgStr == "|r")
-                                        {
-                                            continue;
-                                        }
-                                    } else if (msgStr.length() > 2)
-                                    {
-                                        if (argStr.length() > 0)
-                                        {
-                                            if (msgStr.find("|f") != std::string::npos)
-                                            {
-                                                sendingFile = true;
-                                            }
-                                        }
-                                    }
-                                    SessionID sid;
-                                    BVStatus sidStatus = GetConnectionManager().GetSessionIDFromServiceName(serviceName, sid);
-                                    if (sidStatus != BVStatus::BVSTATUS_OK)
-                                    {
-                                        LogError("Couldn't get sid from {}", serviceName);
-                                        break;
-                                    }
-                                    if (sendingFile)
-                                    {
-                                        // 1. Get file but don't load it all to the memory - get descriptor/load only chunk.
-                                        // 2. Get file size and determine file chunk size.
-                                        // 3. Write some sort of utility for BVTCPConnectionManager
-                                        //    that allows for continuous file sending
-                                        //    probably a thread must be spawned (which can also listen for stop)
-                                        //    maybe a file sender component? or a very simple
-                                        //    object that spawns a mutex and conditional variable
-                                        //    it can have an inMailBox of App, and it can
-                                        //    send messages telling how much bytes it has sent 
-                                        //    Maybe BVFileTransferContext?
-                                        //    class that holds information about sent file.
-                                        //    it is put on a separate thread and receives
-                                        //    inMailBox
-                                        /*
-                                            File sending:
-                                            Send _FILE_TRANSFER_BEGIN
-                                            Payload:
-                                            Size
-                                            Wait for _CONFIRM_CAN_RECEIVE_FILE (if there's space on the other machine)
-                                            We can also just omit this, as there's no much time left...
-                                            If that takes too long, then just scrap the confirmation and send anyway (ecksdee).
-                                        */
-                                        LogDebug("[BVApp_ConsoleClient]: Sending file, path: {}", argStr);
-                                        std::filesystem::path filePath = argStr;
-                                        if (std::filesystem::exists(filePath))
-                                        {
-                                            LogDebug("[BVApp_ConsoleClient]: File {} exists!", argStr);
-                                            GetConnectionManager().InitiateFileTransferWithSession(sid, filePath);
-                                            LogDebug("[BVApp_ConsoleClient]: Initiated file transfer with session: {}", sid);
-                                        } else
-                                        {
-                                            LogDebug("[BVApp_ConsoleClient]: File {} does not exist!", argStr);
-                                        }
-                                        sendingFile = false;
-                                        continue;
-                                    }
-
-                                    std::unique_ptr<BVTCPMessage<BVChatMessagePayload>> chatMsg = ConstructChatMessageFromInput(msgStr);
-                                    uint64_t timestamp = chatMsg->header.timestamp;
-                                    BVStatus sentStatus = GetConnectionManager().SendDataToNode(std::move(chatMsg), sid);
-                                    if (sentStatus == BVStatus::BVSTATUS_FATAL_ERROR)
-                                    {
-                                        std::cout << "Error: No session! Check logs or contact support or something." << std::endl;
-                                        break;
-                                    }
-                                    {
-                                        std::lock_guard<std::mutex> l(chatLogsMapMutex);
-                                        try
-                                        {
-                                            chatLogsM.at(serviceName).AddMessage(BVChatMessage(msgStr, timestamp, GetThisMachineServiceData().hostname));
-                                        }
-                                        catch(const std::out_of_range& e)
-                                        {
-                                            BVChatMessageLog log{serviceName, BVChatMessage(msgStr, timestamp, GetThisMachineServiceData().hostname)};
-                                            chatLogsM.emplace(serviceName, log);
-                                        }
-                                    }
-                                }
-                                // ClearScreen();
-                                // PrintAll();
-                                break;
-                            }
-                            nodeIdx++;
-                        }
-                        if (!found)
-                        {
-                            LogWarn("Not found any service at idx {}", nodeIdx);
-                            break;
-                        }
-                        // Enumerate nodesM
-                        // choose node at nodesM
-                        // BVNode node = nodesV.at(idx);
-                        // ClearScreen();
-                        // const std::string msgStr = this->terminal.GetStringFromSTDIN("Enter message: ");
-                        // std::unique_ptr<BVChatMessage> chatMsg = ConstructChatMessageFromInput(msgStr, node.id);
-
-                    } catch (const std::out_of_range& ex)
-                    {
-                        LogInfo("App: There's no Node at {}", idx);
-                    }
-                } else
-                {
-                    LogError("App: Optional does not have value!");
+                    LogError("App: stdin read error: {}", ec.message());
                 }
-                break;
+                return;
             }
-            case BVConsoleActionType::BVCONSOLEACTION_PAUSE_DISCOVERY:
-                LogTrace("App: Pause discovery message sent.");
-                SendMessage(BVMessage(
-                    BVEventType::BVEVENTTYPE_DISCOVERY_REQUEST_PAUSE, nullptr));
-                break;
-            case BVConsoleActionType::BVCONSOLEACTION_RESUME_DISCOVERY:
-                LogTrace("App: Resume discovery message sent.");
-                SendMessage(BVMessage(
-                    BVEventType::BVEVENTTYPE_DISCOVERY_REQUEST_RESUME, nullptr));
-                break;
-            case BVConsoleActionType::BVCONSOLEACTION_QUIT:
+            if (n == 1)
             {
-                // using CharPayload128B = std::array<char, 128>;
-                // using GoodbyeMsg = BVTCPMessage<CharPayload128B>;
-                // // Send message that we are deregistering
-                // // TODO ...
-                // BVTCPMessageHeader header = ConstructMessageHeader(
-                //     BVTCPMessageType::BVSESSIONCONTROLMESSAGETYPE_NODESESSION_GOODBYE);
-                // CharPayload128B payloadRaw;
-                // const std::string& serviceNameToCopy = 
-                //     this->GetThisMachineServiceData().hostname;
-                // std::copy(serviceNameToCopy.begin(), serviceNameToCopy.end(), payloadRaw.data());
-                // GoodbyeMsg goodbyeMsg = ConstructMessage(header, payloadRaw);
-                // goodbyeMsg.header.dataLen = this->GetThisMachineServiceData().hostname.length();
-                // this->GetConnectionManager().SendDataToEveryone(goodbyeMsg);
-                // send quit event/message
-                SendMessage(BVMessage(
-                    BVEventType::BVEVENTTYPE_TERMINATE_ALL, nullptr));
-                SetIsRunning(false);
-                LogTrace("App: quitting. Sent TERMINATE_ALL message and BVEVENTTYPE_APP_SERVICE_DEREGISTERED to everyone");
-                break;
+                this->OnKey(this->readCh);
+                if (this->GetIsRunning())
+                {
+                    this->StartStdinRead();
+                }
             }
-            case BVConsoleActionType::BVCONSOLEACTION_BLOCKHOST:
-                // send blockhost event/message
-                break;
+        });
+}
+
+void BVApp_ConsoleClient::OnKey(char c)
+{
+    if (this->uiState == UIState::Chat)
+    {
+        this->HandleChatKey(c);
+    }
+    else
+    {
+        this->HandleMainMenuKey(c);
+    }
+}
+
+void BVApp_ConsoleClient::HandleMainMenuKey(char key)
+{
+    auto action = ParseConsoleActionFromKey(key);
+    if (!action.has_value())
+    {
+        return; // unbound key
+    }
+    switch (action->type)
+    {
+        case BVConsoleActionType::BVCONSOLEACTION_REPRINT:
+            Render();
+            break;
+        case BVConsoleActionType::BVCONSOLEACTION_SENDMSG:
+            if (action->num.has_value())
+            {
+                EnterChat(action->num.value());
+            }
+            break;
+        case BVConsoleActionType::BVCONSOLEACTION_PAUSE_DISCOVERY:
+            LogTrace("App: Pause discovery message sent.");
+            SendMessage(BVMessage(BVEventType::BVEVENTTYPE_DISCOVERY_REQUEST_PAUSE, nullptr));
+            break;
+        case BVConsoleActionType::BVCONSOLEACTION_RESUME_DISCOVERY:
+            LogTrace("App: Resume discovery message sent.");
+            SendMessage(BVMessage(BVEventType::BVEVENTTYPE_DISCOVERY_REQUEST_RESUME, nullptr));
+            break;
+        case BVConsoleActionType::BVCONSOLEACTION_QUIT:
+            LogTrace("App: quitting. Sending TERMINATE_ALL.");
+            SendMessage(BVMessage(BVEventType::BVEVENTTYPE_TERMINATE_ALL, nullptr));
+            SetIsRunning(false);
+            StopIOContext(); // unblocks GetIoContext().run() in Run()
+            break;
+        case BVConsoleActionType::BVCONSOLEACTION_BLOCKHOST:
+            // send blockhost event/message
+            break;
+    }
+}
+
+void BVApp_ConsoleClient::EnterChat(int selection)
+{
+    // 'selection' is the 1-based number shown next to an established session
+    // (see PrintSessions). Map it to that session's service name.
+    const std::vector<std::string> sessionNames =
+        this->GetConnectionManager().GetSessionServiceNamesInDisplayOrder();
+    const int idx = selection - 1;
+    if (idx < 0 || idx >= static_cast<int>(sessionNames.size()))
+    {
+        LogWarn("App: No session at selection {}", selection);
+        return;
+    }
+    this->activeChatService = sessionNames[static_cast<std::size_t>(idx)];
+    this->uiState = UIState::Chat;
+    this->inputLine.clear();
+    this->lastNotification.clear(); // we're now viewing a chat; drop the banner
+    LogDebug("App: Entering chat with {}", this->activeChatService);
+    RenderChat();
+}
+
+void BVApp_ConsoleClient::HandleChatKey(char c)
+{
+    if (c == '\n' || c == '\r')
+    {
+        std::cout << '\n' << std::flush;
+        const std::string line = this->inputLine;
+        this->inputLine.clear();
+        if (line == "|q")
+        {
+            this->uiState = UIState::MainMenu;
+            this->activeChatService.clear();
+            Render();
+            return;
+        }
+        if (line.empty() || line == "|r")
+        {
+            RenderChat(); // explicit refresh / ignore empty line
+            return;
+        }
+        SendChatLine(this->activeChatService, line);
+        RenderChat();
+        return;
+    }
+    if (c == 127 || c == 8) // backspace / delete
+    {
+        if (!this->inputLine.empty())
+        {
+            this->inputLine.pop_back();
+            std::cout << "\b \b" << std::flush;
+        }
+        return;
+    }
+    if (std::isprint(static_cast<unsigned char>(c)))
+    {
+        this->inputLine.push_back(c);
+        std::cout << c << std::flush; // echo as typed
+    }
+}
+
+void BVApp_ConsoleClient::SendChatLine(const std::string& serviceName, const std::string& line)
+{
+    SessionID sid;
+    if (GetConnectionManager().GetSessionIDFromServiceName(serviceName, sid) != BVStatus::BVSTATUS_OK)
+    {
+        LogError("Couldn't get sid from {}", serviceName);
+        return;
+    }
+
+    // "|f <path>" sends a file instead of a text message.
+    if (line.rfind("|f ", 0) == 0)
+    {
+        std::string argStr = line.substr(3);
+        // Terminal drag-and-drop tends to add a trailing space, wrap the path in
+        // quotes, and/or backslash-escape spaces. Normalise all of that so a
+        // dropped path works the same as a typed one.
+        auto isSpace = [](char c) { return c == ' ' || c == '\t'; };
+        while (!argStr.empty() && isSpace(argStr.front())) { argStr.erase(argStr.begin()); }
+        while (!argStr.empty() && isSpace(argStr.back()))   { argStr.pop_back(); }
+        if (argStr.size() >= 2 &&
+            ((argStr.front() == '\'' && argStr.back() == '\'') ||
+             (argStr.front() == '"'  && argStr.back() == '"')))
+        {
+            argStr = argStr.substr(1, argStr.size() - 2);
+        }
+        std::string unescaped; // turn "\ " (escaped space) back into " "
+        unescaped.reserve(argStr.size());
+        for (std::size_t i = 0; i < argStr.size(); ++i)
+        {
+            if (argStr[i] == '\\' && i + 1 < argStr.size() && argStr[i + 1] == ' ')
+            {
+                continue; // drop the backslash, keep the space
+            }
+            unescaped.push_back(argStr[i]);
+        }
+        argStr = unescaped;
+        LogDebug("[BVApp_ConsoleClient]: Sending file, path: '{}'", argStr);
+        std::filesystem::path filePath = argStr;
+        std::error_code fsec;
+        if (std::filesystem::is_regular_file(filePath, fsec))
+        {
+            LogDebug("[BVApp_ConsoleClient]: File {} exists!", argStr);
+            GetConnectionManager().InitiateFileTransferWithSession(sid, filePath);
+            LogDebug("[BVApp_ConsoleClient]: Initiated file transfer with session: {}", sid);
+        }
+        else
+        {
+            LogWarn("[BVApp_ConsoleClient]: {} is not a regular file - not sending.", argStr);
+        }
+        return;
+    }
+
+    std::unique_ptr<BVTCPMessage<BVChatMessagePayload>> chatMsg = ConstructChatMessageFromInput(line);
+    const uint64_t timestamp = chatMsg->header.timestamp;
+    if (GetConnectionManager().SendDataToNode(std::move(chatMsg), sid) == BVStatus::BVSTATUS_FATAL_ERROR)
+    {
+        LogError("App: No session for {} - message not sent.", serviceName);
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> l(chatLogsMapMutex);
+        const BVChatMessage mine(line, timestamp, GetThisMachineServiceData().hostname);
+        try
+        {
+            chatLogsM.at(serviceName).AddMessage(mine);
+        }
+        catch (const std::out_of_range&)
+        {
+            chatLogsM.emplace(serviceName, BVChatMessageLog(serviceName, mine));
         }
     }
+}
+
+void BVApp_ConsoleClient::Render(void)
+{
+    if (this->uiState == UIState::Chat)
+    {
+        RenderChat();
+    }
+    else
+    {
+        PrintAll();
+    }
+}
+
+void BVApp_ConsoleClient::RenderChat(void)
+{
+    PrintAll(); // PrintAll() clears the screen and prints services/sessions
+    {
+        std::lock_guard<std::mutex> l(chatLogsMapMutex);
+        auto it = chatLogsM.find(this->activeChatService);
+        if (it != chatLogsM.end())
+        {
+            std::cout << "Message log with " << this->activeChatService << std::endl;
+            it->second.PrintNLastMessages(TEN_LAST_MESSAGES);
+        }
+        else
+        {
+            std::cout << "No messages with " << this->activeChatService << " :)" << std::endl;
+        }
+    }
+    std::cout << "(|q quit chat) (|f <path> send file) (|r redraw)" << std::endl;
+    std::cout << ">> " << this->inputLine << std::flush;
 }
 
 inline void BVApp_ConsoleClient::ClearScreen(void)
@@ -282,17 +324,22 @@ void BVApp_ConsoleClient::PrintAll(void)
     ClearScreen();
     std::cout << "LocalChat console client v0.4.0" << std::endl;
     std::cout << "Re(D)raw" << std::endl;
-    std::cout << "(0-9) Choose host to send message to" << std::endl;
+    std::cout << "(1-9) Chat with a session listed below" << std::endl;
     std::cout << "(P)ause discovery" << std::endl;
     std::cout << "(R)esume discovery" << std::endl;
     std::cout << "(Q)uit" << std::endl;
     std::cout << "-----------------------------" << std::endl;
-    std::cout << "Available services:" << std::endl;
+    std::cout << "Discovered services:" << std::endl;
     this->PrintServices();
     // TODO: statuses like is discovery paused...
     std::cout << "-----------------------------" << std::endl;
-    std::cout << "Sessions established:" << std::endl;
+    std::cout << "Sessions  --  press the number to chat:" << std::endl;
     this->GetConnectionManager().PrintSessions();
+    if (!this->lastNotification.empty())
+    {
+        std::cout << "-----------------------------" << std::endl;
+        std::cout << ">> " << this->lastNotification << std::endl;
+    }
     std::cout << "=============================" << std::endl;
     std::cout << std::flush;
 }
@@ -306,12 +353,12 @@ BVStatus BVApp_ConsoleClient::PrintServices(void)
         std::cout << "None available apart from ours... :(" << std::endl;
         std::cout << this->GetThisMachineServiceData().hostname << std::endl;
     }
-    int i = 1;
+    // Not numbered on purpose: discovery is just status. You chat with the
+    // numbered sessions list below, not with raw discovered services.
     for (BVServiceBrowseInstance& bI : this->serviceV)
     {
-        std::cout << i++ << ":" << std::endl;
+        std::cout << "  - ";
         bI.print();
-        std::cout << "+-+-+-+-" << std::endl;
     }
     return status;
 }
@@ -552,6 +599,25 @@ BVStatus BVApp_ConsoleClient::HandleMessageIncoming(std::unique_ptr<std::any> dp
             chatLogsM.emplace(sender, log);
         }
     }
+
+    // This handler runs on the mailbox thread. Hand the redraw to the io_context
+    // so it happens on the UI thread, in order with keystrokes. If we are in the
+    // chat with this sender it shows up in the log; otherwise we surface it as a
+    // notification on whatever screen is currently up - so a message always
+    // appears without the user pressing anything.
+    boost::asio::post(GetIoContext(), [this, sender, textData]()
+    {
+        if (this->uiState == UIState::Chat && this->activeChatService == sender)
+        {
+            this->lastNotification.clear();
+            RenderChat();
+        }
+        else
+        {
+            this->lastNotification = "New message from " + sender + ": " + textData;
+            Render();
+        }
+    });
     return BVStatus::BVSTATUS_OK;
 }
 
@@ -761,13 +827,25 @@ BVStatus BVApp_ConsoleClient::HandleFileTransferEnd(std::unique_ptr<std::any> dp
         }
         LogTrace("[BVApp_ConsoleClient]: Opened file to appending at: {}", filepath.string());
         incomingFile.write(fdata.data(), static_cast<std::streamsize>(fdata.size()));
+        incomingFile.close(); // flush before trimming
+
+        // Chunks are fixed-size and the final one is zero-padded, so the file on
+        // disk is rounded up to a multiple of the chunk size. Trim it back to the
+        // exact size advertised in FILE_TRANSFER_BEGIN.
+        std::error_code rec;
+        std::filesystem::resize_file(filepath, fsize, rec);
+        if (rec)
+        {
+            LogError("[BVApp_ConsoleClient]: Couldn't trim {} to {} bytes: {}",
+                filepath.string(), fsize, rec.message());
+        }
     }
     catch(const std::exception& e)
     {
         LogError("[BVApp_ConsoleClient]: Error while writing to file: {}", e.what());
         return BVStatus::BVSTATUS_NOK;
     }
-    std::cout << "File saved: " << fname << std::endl;
+    std::cout << "File saved: " << fname << " (" << fsize << " bytes)" << std::endl;
 
     // Delete data at correlationKey
     fileTransferData.erase(correlationKey);

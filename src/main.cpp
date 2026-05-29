@@ -212,8 +212,10 @@ int main(int argc, char** argv)
     discovery.StartListeningOnMailbox();
     discovery.LaunchWorkingThread();
     consoleClient.StartListeningOnMailbox();
-    consoleClient.LaunchIOThread();
-    consoleClient.Run(); // this is our app worker thread (main thread)
+    // Run() runs the io_context on this (main) thread, so we do not launch a
+    // separate io thread for the console client - that keeps every UI action and
+    // network handler on one thread and avoids stdout races.
+    consoleClient.Run();
 
     // Join all
     discovery.TryJoinMailBoxThread();

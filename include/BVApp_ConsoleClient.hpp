@@ -7,6 +7,7 @@
 #include <optional>
 #include <limits>
 #include <algorithm>
+#include <cctype>
 #include "BVApp.hpp"
 #include "BVComponent.hpp"
 #include "BVLoggable.hpp"
@@ -270,6 +271,25 @@ private:
     std::mutex stdoutMutex; // mutex for internal worker threads, in this case printing.
     std::thread stdinThread; // worker thread? I don't think this is needed
     BVTerminal terminal{};
+
+    // Event-driven console UI: stdin is read through the io_context (see Run()),
+    // so keystrokes and incoming network messages are handled on the same thread.
+    enum class UIState { MainMenu, Chat };
+    UIState uiState{UIState::MainMenu};
+    std::string activeChatService{}; // peer we are chatting with in UIState::Chat
+    std::string inputLine{};         // message line being typed
+    std::string lastNotification{};  // latest incoming message shown when not in its chat
+    char readCh{0};                  // single-byte buffer for async stdin reads
+    std::optional<boost::asio::posix::stream_descriptor> stdinDescriptor{};
+
+    void StartStdinRead(void);       // queue the next async read of one key
+    void OnKey(char c);              // route a key to the active UI state
+    void HandleMainMenuKey(char key);
+    void HandleChatKey(char c);
+    void EnterChat(int idx);         // open chat with the idx-th known node
+    void SendChatLine(const std::string& serviceName, const std::string& line);
+    void Render(void);               // redraw whatever the current state shows
+    void RenderChat(void);
 
 protected:
     BVNode ResolveServiceToEndpoint(const std::string& hosttarget, const std::string& serviceName, const int port) override;

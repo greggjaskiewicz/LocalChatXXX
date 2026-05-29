@@ -12,6 +12,7 @@
 #include "BVFileTransferContext.hpp"
 #include <arpa/inet.h>
 #include <map>
+#include <vector>
 #include <mutex>
 #include <functional>
 
@@ -145,14 +146,14 @@ public:
         {
             std::lock_guard<std::mutex> l(session_m_mutex);
             if (this->sessions_m.size() == 0) std::cout << "None." << std::endl;
+            int menuNumber = 1; // 1-based selection number, see GetSessionServiceNamesInDisplayOrder()
             for (const auto& [k,v] : this->sessions_m)
             {
-                // TODO: Add session index to choose
-                std::cout << "Session[" <<  v->GetSessionID()
-                        << "]" << " between " << v->GetSessionData()->nodeData.serviceName
-                        << " Node ID: " << static_cast<uint16_t>(v->GetSessionData()->nodeData.id)
-                        // << " Node ID: " << v->GetSessionData()->nodeData.id
-                        << std::endl;
+                std::cout << "  (" << menuNumber++ << ")  "
+                        << v->GetSessionData()->nodeData.serviceName
+                        << "   [session " << v->GetSessionID()
+                        << ", node " << static_cast<uint16_t>(v->GetSessionData()->nodeData.id)
+                        << "]" << std::endl;
             }
         }
     }
@@ -447,6 +448,22 @@ public:
     std::map<std::string, BVNode>& GetNodesM(void)
     {
         return this->nodesM;
+    }
+
+    // Service names of established sessions, in the same order PrintSessions
+    // lists them. The menu shows a 1-based number per session, so menu number N
+    // maps to index N-1 here. Both iterate sessions_m, which is ordered, so the
+    // numbering stays consistent between display and selection.
+    std::vector<std::string> GetSessionServiceNamesInDisplayOrder(void)
+    {
+        std::vector<std::string> names;
+        std::lock_guard<std::mutex> l(session_m_mutex);
+        names.reserve(sessions_m.size());
+        for (const auto& [k, v] : sessions_m)
+        {
+            names.push_back(v->GetSessionData()->nodeData.serviceName);
+        }
+        return names;
     }
 
     void SetMailboxGetterF(MailboxGetter f)

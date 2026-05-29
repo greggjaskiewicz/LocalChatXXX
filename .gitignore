@@ -47,6 +47,8 @@ build/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
 Makefile
 src/Makefile
 tests/Makefile

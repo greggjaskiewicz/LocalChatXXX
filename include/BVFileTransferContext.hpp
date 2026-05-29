@@ -9,8 +9,11 @@
 #include "BVTCPSession.hpp"
 #include "BVLoggable.hpp"
 
-// This works between 100ms-500ms
-#define WAIT_FOR_SENDING_MS 400
+// Throttle between chunks: a band-aid for the receiver's lack of flow control
+// (see notes below). Author found 100ms-500ms works; 100ms is the tested floor
+// and ~4x faster than the old 400ms. Going lower risks the receiver's fixed
+// readBuf being overwritten before it drains -> silently dropped chunks.
+#define WAIT_FOR_SENDING_MS 100
 
 // File transfer is always outgoing?
 // What will the context be for receiving a message?
@@ -92,7 +95,7 @@ private:
                 This is why we couldn't parse the chunk header.
                 Below difference HAS to be greater or equal than ftBeginPayload.size().
             */
-            session_p->WriteFileChunk(fChunk, MESSAGE_FRAME_SIZE_BYTES - FILE_HEADER_SIZE_BYTES);
+            session_p->WriteFileChunkSync(fChunk, MESSAGE_FRAME_SIZE_BYTES - FILE_HEADER_SIZE_BYTES);
             LogTrace("[BVFileTransferContext]: Sent FILE_TRANSFER_BEGIN of size: {}", csize);
             LogTrace("[BVFileTransferContext]: File name: {}", fname);
             LogDebug("[BVFileTransferContext]: Metadata raw: {}", metadata);
@@ -118,7 +121,6 @@ private:
                     msgType = BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_TRANSFER_CHUNK_SENT;
                     state = FileTransferState::FILETRANSFERSTATE_ONGOING;
                     LogTrace("[BVFileTransferContext]: Sent FILE_TRANSFER_CHUNK_SENT of size: {}", csize);
-                    std::cout << "Sending..." << std::endl;
                 }
             } 
             if (state == FileTransferState::FILETRANSFERSTATE_LAST_CHUNK)
@@ -126,15 +128,26 @@ private:
                 msgType = BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_TRANSFER_END;
                 state = FileTransferState::FILETRANSFERSTATE_ONGOING;
                 LogTrace("[BVFileTransferContext]: Sent FILETRANSFERSTATE_FILE_TRANSFER_END of size: {}", csize);
-                std::cout << "Sent!..." << std::endl;
                 isRunning = false;
             }
-            BVTCPFileHeader fChunkHeader = ConstructFileHeader(msgType, ftcid, metadata); 
+            BVTCPFileHeader fChunkHeader = ConstructFileHeader(msgType, ftcid, metadata);
             BVTCPFileChunk  fChunk       = ConstructFileChunk(fChunkHeader, dataToTransferBuffer);
-            // This shouldn't be the solution but for now it will suffice.
-            std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_FOR_SENDING_MS));
-            session_p->WriteFileChunk(fChunk, csize);
-            bytesSent += bytesRead;  
+            // Synchronous, one chunk at a time: the worker thread blocks until
+            // this chunk is fully written, so chunks can't overlap and TCP's
+            // window provides the back-pressure. No artificial sleep needed.
+            session_p->WriteFileChunkSync(fChunk, csize);
+            bytesSent += bytesRead;
+            // Single in-place progress line (\r overwrites) instead of one
+            // "Sending..." per chunk.
+            const uint32_t pct = (fsize > 0)
+                ? static_cast<uint32_t>((static_cast<uint64_t>(bytesSent) * 100) / fsize)
+                : 100;
+            std::cout << "\rSending " << fname << ": " << pct << "%  ("
+                      << bytesSent << " / " << fsize << " bytes)" << std::flush;
+            if (!isRunning) // last chunk written
+            {
+                std::cout << "  done." << std::endl;
+            }
         } else
         {
             isRunning = false;
