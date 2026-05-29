@@ -86,3 +86,4 @@ tests/
 
 # Data files
 data/
+*.xcuserstate
