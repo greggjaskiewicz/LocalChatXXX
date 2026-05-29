@@ -62,6 +62,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Latest file-transfer status line, e.g. "Receiving x.png… 45%" / "Sent y.png".
 - (NSString *)transferStatus;
 
+/// Directory received files are moved into (a per-sender subfolder is created
+/// under it). Pass "" to leave them in the app's working data/ folder.
+- (void)setSaveDirectory:(NSString *)path;
+
 - (NSString *)thisHostname;
 
 @end

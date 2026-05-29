@@ -12,5 +12,10 @@ struct LocalChatGUIApp: App {
                 // Defer off the view-update pass (start() mutates @Published state).
                 .onAppear { DispatchQueue.main.async { model.start() } }
         }
+
+        // ⌘, opens this — where you pick the received-files folder.
+        Settings {
+            SettingsView().environmentObject(model)
+        }
     }
 }

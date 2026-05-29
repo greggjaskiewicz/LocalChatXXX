@@ -274,22 +274,30 @@ private:
 
     // Event-driven console UI: stdin is read through the io_context (see Run()),
     // so keystrokes and incoming network messages are handled on the same thread.
-    enum class UIState { MainMenu, Chat };
+    enum class UIState { MainMenu, Chat, FileOffer };
     UIState uiState{UIState::MainMenu};
+    UIState priorUiState{UIState::MainMenu}; // state to return to after a file offer
     std::string activeChatService{}; // peer we are chatting with in UIState::Chat
     std::string inputLine{};         // message line being typed
     std::string lastNotification{};  // latest incoming message shown when not in its chat
     char readCh{0};                  // single-byte buffer for async stdin reads
     std::optional<boost::asio::posix::stream_descriptor> stdinDescriptor{};
 
+    // Pending incoming file offer awaiting a y/n decision (UIState::FileOffer).
+    struct PendingOffer { uint32_t key{}; std::string sender; std::string fname; std::uint64_t size{}; };
+    std::optional<PendingOffer> pendingOffer{};
+    std::uint64_t recvBytes{0};      // bytes received in the current incoming transfer
+
     void StartStdinRead(void);       // queue the next async read of one key
     void OnKey(char c);              // route a key to the active UI state
     void HandleMainMenuKey(char key);
     void HandleChatKey(char c);
+    void HandleFileOfferKey(char c); // y/n decision while UIState::FileOffer
     void EnterChat(int idx);         // open chat with the idx-th known node
     void SendChatLine(const std::string& serviceName, const std::string& line);
     void Render(void);               // redraw whatever the current state shows
     void RenderChat(void);
+    void RenderFileOffer(void);      // draw the Accept/Reject prompt
 
 protected:
     BVNode ResolveServiceToEndpoint(const std::string& hosttarget, const std::string& serviceName, const int port) override;

@@ -19,6 +19,7 @@
 		BC53EB6B64301CFAF132EB21 /* BVBroker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1D41EA17F49B49DB9AFD85C8 /* BVBroker.cpp */; };
 		C1C000F3F36E9D927278D147 /* bonjour_api.c in Sources */ = {isa = PBXBuildFile; fileRef = 6FDE4FBE63C7ACE5EE377F3F /* bonjour_api.c */; };
 		D548AB6DD9FB3FD2F175D9CA /* ChatModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBE8B1EAE1BBAF3C044E73A /* ChatModel.swift */; };
+		EC81FF279B1A45CD6AAA42F6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0DFD5CA702C1D0B1117717 /* SettingsView.swift */; };
 		F79E0B77FD94B23E9DDA0DA6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EA72D9CEF4F38F3B6FBAE27 /* ContentView.swift */; };
 /* End PBXBuildFile section */
 
@@ -33,6 +34,7 @@
 		377B0C5147E0FA8138BAEDD2 /* linked_list.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = linked_list.c; sourceTree = "<group>"; };
 		60C42423A1F1FFE716F47B75 /* BVChatBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BVChatBridge.h; sourceTree = "<group>"; };
 		680B46655028EEE3F458EA3B /* LocalChatGUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalChatGUIApp.swift; sourceTree = "<group>"; };
+		6D0DFD5CA702C1D0B1117717 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6FDE4FBE63C7ACE5EE377F3F /* bonjour_api.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bonjour_api.c; sourceTree = "<group>"; };
 		78584E3CD2576B792A143A02 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7AA9F59EA80F4D02A149805F /* BVDiscovery_Bonjour.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVDiscovery_Bonjour.cpp; sourceTree = "<group>"; };
@@ -62,6 +64,7 @@
 				78584E3CD2576B792A143A02 /* Info.plist */,
 				150455F10B2C6A6AA8FE7C63 /* LocalChatGUI-Bridging-Header.h */,
 				680B46655028EEE3F458EA3B /* LocalChatGUIApp.swift */,
+				6D0DFD5CA702C1D0B1117717 /* SettingsView.swift */,
 			);
 			path = LocalChatGUI;
 			sourceTree = "<group>";
@@ -166,6 +169,7 @@
 				D548AB6DD9FB3FD2F175D9CA /* ChatModel.swift in Sources */,
 				F79E0B77FD94B23E9DDA0DA6 /* ContentView.swift in Sources */,
 				7F86B1E884FB7D97DF85C93D /* LocalChatGUIApp.swift in Sources */,
+				EC81FF279B1A45CD6AAA42F6 /* SettingsView.swift in Sources */,
 				C1C000F3F36E9D927278D147 /* bonjour_api.c in Sources */,
 				2029BACFBB8429C52E9D9209 /* bonjour_api_bridge.cpp in Sources */,
 				7E91CFCE9EF903B4FE2DDA61 /* linked_list.c in Sources */,

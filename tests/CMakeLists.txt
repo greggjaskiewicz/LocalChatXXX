@@ -46,6 +46,17 @@ target_link_libraries(
 )
 
 add_executable(
+  file_transfer_test_Integrity
+  file_transfer_test_Integrity.cpp
+)
+
+target_link_libraries(
+  file_transfer_test_Integrity
+  GTest::gtest_main
+  spdlog::spdlog
+)
+
+add_executable(
   linked_list_test_Basic
   linked_list_test_Basic.cpp
 )
@@ -125,6 +136,7 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(dns_sd_test_Registration)
 gtest_discover_tests(linked_list_test_Basic)
+gtest_discover_tests(file_transfer_test_Integrity)
 
 # TODO: Run all tests, either link every object to a single executable and run
 #       or write script that executes all tests

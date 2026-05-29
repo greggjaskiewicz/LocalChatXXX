@@ -25,7 +25,7 @@ static void BVSetWorkingDir(void)
         return;
     }
     std::error_code ec;
-    const std::filesystem::path dir = std::filesystem::path(home) / "LocalChatGUI";
+    const std::filesystem::path dir = std::filesystem::path(home) / ".LocalChatGUI";
     std::filesystem::create_directories(dir, ec);
     ::chdir(dir.c_str());
 }
@@ -225,6 +225,11 @@ static NSString *NS(const std::string &s)
 - (NSString *)transferStatus
 {
     return NS(_core->transferStatus());
+}
+
+- (void)setSaveDirectory:(NSString *)path
+{
+    _core->setSaveDirectory(path.UTF8String ? path.UTF8String : "");
 }
 
 - (NSString *)thisHostname

@@ -30,6 +30,7 @@ final class ChatModel: NSObject, ObservableObject, BVChatBridgeDelegate {
         running = bridge.start()
         hostname = bridge.thisHostname()
         statusLine = running ? "This machine: \(hostname)" : "Failed to start (mDNS registration?)"
+        applySaveDirectory(ChatModel.savedDirectory)
         refreshPeers()
         // Poll: sessions are added in ConnectHandler with no app event, and
         // outgoing send progress has no event stream either. Cheap, and only
@@ -47,6 +48,18 @@ final class ChatModel: NSObject, ObservableObject, BVChatBridgeDelegate {
         progressTimer = nil
         bridge.stop()
         running = false
+    }
+
+    // Where received files are saved. Defaults to ~/Downloads when unset.
+    static var defaultDirectory: String {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.path ?? ""
+    }
+    static var savedDirectory: String {
+        let s = UserDefaults.standard.string(forKey: "saveDirectory") ?? ""
+        return s.isEmpty ? defaultDirectory : s
+    }
+    func applySaveDirectory(_ path: String) {
+        bridge.setSaveDirectory(path)
     }
 
     func select(_ peer: String) {

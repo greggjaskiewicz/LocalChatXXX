@@ -184,6 +184,7 @@ public:
     }
     void acceptFile(std::uint32_t key)  { if (app) { app->AcceptFile(key); } }
     void rejectFile(std::uint32_t key)  { if (app) { app->RejectFile(key); } }
+    void setSaveDirectory(const std::string& dir) { if (app) { app->SetSaveDirectory(dir); } }
     std::string transferStatus()
     {
         return app ? app->TransferStatus() : std::string{};

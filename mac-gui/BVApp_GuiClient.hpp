@@ -332,14 +332,64 @@ public:
 
         if (haveInfo)
         {
+            std::error_code ec;
+            const std::filesystem::path src =
+                std::filesystem::current_path(ec) / "data" / serviceName / fileName;
+            std::filesystem::path finalPath = src;
+
+            std::string dir;
+            {
+                std::lock_guard<std::mutex> l(saveDirMutex);
+                dir = saveDir;
+            }
+            if (!dir.empty())
+            {
+                // Per-sender subfolder under the user's chosen directory.
+                const std::filesystem::path dstDir = std::filesystem::path(dir) / serviceName;
+                const std::filesystem::path dst    = dstDir / fileName;
+                std::error_code mec;
+                std::filesystem::create_directories(dstDir, mec);
+                std::filesystem::rename(src, dst, mec);
+                if (mec) // e.g. cross-volume rename fails -> copy + delete
+                {
+                    std::error_code cec;
+                    std::filesystem::copy_file(src, dst,
+                        std::filesystem::copy_options::overwrite_existing, cec);
+                    if (!cec)
+                    {
+                        std::error_code rec;
+                        std::filesystem::remove(src, rec);
+                        finalPath = dst;
+                    }
+                    else
+                    {
+                        LogError("[GUI] Couldn't move received file to {}: {}", dst.string(), cec.message());
+                    }
+                }
+                else
+                {
+                    finalPath = dst;
+                }
+            }
+
             AppendChatEntry(serviceName, "\xF0\x9F\x93\x8E Received file: " + fileName, serviceName);
-            std::lock_guard<std::mutex> l(xferMutex);
-            xferStatus = "Received " + fileName;
-            xferReceived = 0;
-            xferTotal = 0;
+            {
+                std::lock_guard<std::mutex> l(xferMutex);
+                xferStatus = "Saved " + fileName + " to " + finalPath.parent_path().string();
+                xferReceived = 0;
+                xferTotal = 0;
+            }
         }
         Notify(BVGuiEvent::MessagesChanged);
         return s;
+    }
+
+    // Destination for received files (per-sender subfolder is created under it).
+    // Empty = leave them in the working dir's data/<peer>/ (the default).
+    void SetSaveDirectory(const std::string& dir)
+    {
+        std::lock_guard<std::mutex> l(saveDirMutex);
+        saveDir = dir;
     }
 
 private:
@@ -366,6 +416,10 @@ private:
             GetConnectionManager().RespondToFileOffer(sender, key, accept);
         });
     }
+
+    // User-chosen destination directory for received files.
+    std::mutex saveDirMutex;
+    std::string saveDir;
 
     // File-transfer progress line (incoming) + outgoing "Sent" status.
     std::mutex xferMutex;

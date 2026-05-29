@@ -1,4 +1,5 @@
 #include "BVApp_ConsoleClient.hpp"
+#include "BVReceivedFile.hpp"
 
 BVApp_ConsoleClient::BVApp_ConsoleClient(const BVServiceData _thisMachineServiceData,
                                          std::shared_ptr<threadsafe_queue<BVMessage>> _outMbx,
@@ -102,7 +103,11 @@ void BVApp_ConsoleClient::StartStdinRead(void)
 
 void BVApp_ConsoleClient::OnKey(char c)
 {
-    if (this->uiState == UIState::Chat)
+    if (this->uiState == UIState::FileOffer)
+    {
+        this->HandleFileOfferKey(c);
+    }
+    else if (this->uiState == UIState::Chat)
     {
         this->HandleChatKey(c);
     }
@@ -110,6 +115,50 @@ void BVApp_ConsoleClient::OnKey(char c)
     {
         this->HandleMainMenuKey(c);
     }
+}
+
+void BVApp_ConsoleClient::HandleFileOfferKey(char c)
+{
+    if (!this->pendingOffer.has_value())
+    {
+        this->uiState = this->priorUiState;
+        Render();
+        return;
+    }
+    const PendingOffer offer = *this->pendingOffer;
+    if (c == 'y' || c == 'Y')
+    {
+        GetConnectionManager().RespondToFileOffer(offer.sender, offer.key, true);
+        std::cout << "\nAccepted. Receiving " << offer.fname << "...\n" << std::flush;
+    }
+    else if (c == 'n' || c == 'N')
+    {
+        GetConnectionManager().RespondToFileOffer(offer.sender, offer.key, false);
+        std::cout << "\nRejected " << offer.fname << ".\n" << std::flush;
+    }
+    else
+    {
+        return; // ignore other keys, keep showing the prompt
+    }
+    this->pendingOffer.reset();
+    this->uiState = this->priorUiState;
+    if (this->priorUiState != UIState::FileOffer)
+    {
+        Render();
+    }
+}
+
+void BVApp_ConsoleClient::RenderFileOffer(void)
+{
+    if (!this->pendingOffer.has_value())
+    {
+        return;
+    }
+    ClearScreen();
+    std::cout << "Incoming file from " << this->pendingOffer->sender << ":\n"
+              << "  " << this->pendingOffer->fname
+              << " (" << this->pendingOffer->size << " bytes)\n\n"
+              << "Accept? (y/n): " << std::flush;
 }
 
 void BVApp_ConsoleClient::HandleMainMenuKey(char key)
@@ -284,7 +333,11 @@ void BVApp_ConsoleClient::SendChatLine(const std::string& serviceName, const std
 
 void BVApp_ConsoleClient::Render(void)
 {
-    if (this->uiState == UIState::Chat)
+    if (this->uiState == UIState::FileOffer)
+    {
+        RenderFileOffer();
+    }
+    else if (this->uiState == UIState::Chat)
     {
         RenderChat();
     }
@@ -625,9 +678,9 @@ BVStatus BVApp_ConsoleClient::HandleMessageIncoming(std::unique_ptr<std::any> dp
 
 BVStatus BVApp_ConsoleClient::HandleFileOffer(std::unique_ptr<std::any> dp)
 {
-    // CLI policy: auto-accept every offer (simplest). The GUI overrides this to
-    // prompt the user. Errors are logged but never propagated (a non-OK return
-    // would abort the mailbox thread).
+    // CLI policy: prompt the user to Accept/Reject (see HandleFileOfferKey). The
+    // GUI client overrides this to drive its own UI. Errors are logged but never
+    // propagated (a non-OK return would abort the mailbox thread).
     if (dp == nullptr)
     {
         return BVStatus::BVSTATUS_OK;
@@ -647,9 +700,20 @@ BVStatus BVApp_ConsoleClient::HandleFileOffer(std::unique_ptr<std::any> dp)
     if (z != std::string::npos) { meta.resize(z); }
     const auto bar = meta.find('|');
     const std::string sender = (bar == std::string::npos) ? meta : meta.substr(0, bar);
-    LogTrace("[BVApp_ConsoleClient]: File offer key={} from {} - auto-accepting.",
-             res.correlationKey, sender);
-    GetConnectionManager().RespondToFileOffer(sender, res.correlationKey, true);
+    const std::string fname  = (bar == std::string::npos) ? std::string{} : meta.substr(bar + 1);
+    LogTrace("[BVApp_ConsoleClient]: File offer key={} from {} ({}) - prompting.",
+             res.correlationKey, sender, fname);
+
+    // This runs on the mailbox thread. Hop onto the io_context so the UI state
+    // (read on the io thread by OnKey/Render) is only ever touched there.
+    PendingOffer offer{res.correlationKey, sender, fname, res.fsize};
+    boost::asio::post(GetIoContext(), [this, offer]()
+    {
+        this->pendingOffer   = offer;
+        this->priorUiState   = this->uiState;
+        this->uiState        = UIState::FileOffer;
+        RenderFileOffer();
+    });
     return BVStatus::BVSTATUS_OK;
 }
 
@@ -696,42 +760,24 @@ BVStatus BVApp_ConsoleClient::HandleFileTransferBegin(std::unique_ptr<std::any> 
     LogTrace("[BVApp_ConsoleClient]: File size: {} Chunk size: {} From: {} Name: {}",
         fsize, csize, serviceName, fname);
 
+    // Start the destination file CLEAN. Chunks are written in append mode, so a
+    // leftover file from a prior aborted/duplicate transfer of the same name
+    // would otherwise be prepended and corrupt the result (see BVReceivedFile
+    // and file_transfer_test_Integrity).
     const std::filesystem::path rootdir = std::filesystem::current_path();
-    try
+    const BVStatus beginStatus = BVReceivedFile::Begin(rootdir, serviceName, fname);
+    if (beginStatus != BVStatus::BVSTATUS_OK)
     {
-        const std::filesystem::path dirpath  = rootdir / "data" / serviceName;
-        const std::filesystem::path filepath = dirpath / fname;
-        if (std::filesystem::is_directory(dirpath))
-        {
-            LogTrace("[BVApp_ConsoleClient]: Directory already exists: {}", dirpath.string());
-        } else
-        {
-            if (std::filesystem::create_directories(rootdir / "data" / serviceName))
-            {
-                LogTrace("[BVApp_ConsoleClient]: Directory created at: ", rootdir.string());
-                if (std::filesystem::is_regular_file(filepath))
-                {
-                    LogTrace("[BVApp_ConsoleClient]: File already exists: {}", filepath.string());
-                } else
-                {
-                    std::ofstream incomingFile(filepath, std::ios::binary | std::ios::out);
-                    LogTrace("[BVApp_ConsoleClient]: Created file at: {}", filepath.string());
-                }
-            } else
-            {
-                LogError("[BVApp_ConsoleClient]: Directory not created.");
-                return BVStatus::BVSTATUS_FATAL_ERROR;
-            }
-        }
+        LogError("[BVApp_ConsoleClient]: Couldn't prepare destination for {}/{}",
+                 serviceName, fname);
+        return beginStatus;
     }
-    catch(const std::exception& e)
-    {
-        LogError("[BVApp_ConsoleClient]: Error while creating directory and/or file: {}", e.what());
-        return BVStatus::BVSTATUS_NOK;
-    }
+    LogTrace("[BVApp_ConsoleClient]: Prepared clean destination: {}",
+             BVReceivedFile::PathFor(rootdir, serviceName, fname).string());
 
     // Register serviceName and fileName at the correlationKey.
     fileTransferData[correlationKey] = std::make_tuple(serviceName, fname);
+    recvBytes = 0; // start the receive-progress counter fresh for this transfer
     return BVStatus::BVSTATUS_OK;
 }
 
@@ -780,25 +826,19 @@ BVStatus BVApp_ConsoleClient::HandleFileChunkSent(std::unique_ptr<std::any> dp)
         fsize, csize, serviceName, fname);
 
     const std::filesystem::path rootdir = std::filesystem::current_path();
-    try
+    const BVStatus appendStatus = BVReceivedFile::AppendChunk(rootdir, serviceName, fname, fdata);
+    if (appendStatus != BVStatus::BVSTATUS_OK)
     {
-        const std::filesystem::path dirpath  = rootdir / "data" / serviceName;
-        const std::filesystem::path filepath = dirpath / fname;
-        std::ofstream incomingFile(filepath, std::ios::binary | std::ios::app);
-        if (!incomingFile)
-        {
-            LogError("Couldn't open an out stream for: {}", filepath.string());
-            return BVStatus::BVSTATUS_FATAL_ERROR;
-        }
-        LogTrace("[BVApp_ConsoleClient]: Opened file to appending at: {}", filepath.string());
-        incomingFile.write(fdata.data(), static_cast<std::streamsize>(fdata.size()));
+        LogError("[BVApp_ConsoleClient]: Couldn't append chunk to {}/{}", serviceName, fname);
+        return appendStatus;
     }
-    catch(const std::exception& e)
-    {
-        LogError("[BVApp_ConsoleClient]: Error while writing to file: {}", e.what());
-        return BVStatus::BVSTATUS_NOK;
-    }
-    std::cout << "File transmission in progress..." << std::endl;
+    // In-place progress (\r) instead of one line per chunk.
+    recvBytes += fdata.size();
+    const uint32_t pct = (fsize > 0)
+        ? static_cast<uint32_t>((static_cast<uint64_t>(recvBytes) * 100) / fsize)
+        : 0;
+    std::cout << "\rReceiving " << fname << ": " << pct << "%  ("
+              << recvBytes << " / " << fsize << " bytes)" << std::flush;
     return BVStatus::BVSTATUS_OK;
 }
 
@@ -846,38 +886,17 @@ BVStatus BVApp_ConsoleClient::HandleFileTransferEnd(std::unique_ptr<std::any> dp
 
     LogTrace("[BVApp_ConsoleClient]: File size: {} Chunk size: {} From: {} Name: {}",
         fsize, csize, serviceName, fname);
-        const std::filesystem::path rootdir = std::filesystem::current_path();
-    try
+    // Write the final chunk and trim to the advertised size (the last fixed-size
+    // chunk is zero-padded).
+    const std::filesystem::path rootdir = std::filesystem::current_path();
+    const BVStatus finishStatus = BVReceivedFile::Finish(rootdir, serviceName, fname, fdata, fsize);
+    if (finishStatus != BVStatus::BVSTATUS_OK)
     {
-        const std::filesystem::path dirpath  = rootdir / "data" / serviceName;
-        const std::filesystem::path filepath = dirpath / fname;
-        std::ofstream incomingFile(filepath, std::ios::binary | std::ios::app);
-        if (!incomingFile)
-        {
-            LogError("Couldn't open an out stream for: {}", filepath.string());
-            return BVStatus::BVSTATUS_FATAL_ERROR;
-        }
-        LogTrace("[BVApp_ConsoleClient]: Opened file to appending at: {}", filepath.string());
-        incomingFile.write(fdata.data(), static_cast<std::streamsize>(fdata.size()));
-        incomingFile.close(); // flush before trimming
-
-        // Chunks are fixed-size and the final one is zero-padded, so the file on
-        // disk is rounded up to a multiple of the chunk size. Trim it back to the
-        // exact size advertised in FILE_TRANSFER_BEGIN.
-        std::error_code rec;
-        std::filesystem::resize_file(filepath, fsize, rec);
-        if (rec)
-        {
-            LogError("[BVApp_ConsoleClient]: Couldn't trim {} to {} bytes: {}",
-                filepath.string(), fsize, rec.message());
-        }
+        LogError("[BVApp_ConsoleClient]: Couldn't finalise {}/{}", serviceName, fname);
+        return finishStatus;
     }
-    catch(const std::exception& e)
-    {
-        LogError("[BVApp_ConsoleClient]: Error while writing to file: {}", e.what());
-        return BVStatus::BVSTATUS_NOK;
-    }
-    std::cout << "File saved: " << fname << " (" << fsize << " bytes)" << std::endl;
+    // Finish the in-place "\rReceiving …" progress line with a newline first.
+    std::cout << "\nFile saved: " << fname << " (" << fsize << " bytes)" << std::endl;
 
     // Delete data at correlationKey
     fileTransferData.erase(correlationKey);
