@@ -1,0 +1,389 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2029BACFBB8429C52E9D9209 /* bonjour_api_bridge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 136C2C5EA37EF1B81F001CE6 /* bonjour_api_bridge.cpp */; };
+		25AB2DEBDC22F1FCFCA9ACBC /* BVTCPSession.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C514C4081348BA2F67956444 /* BVTCPSession.cpp */; };
+		35072A05814E4C5A2EC5072F /* BVService_Bonjour.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C95BE71A8E2679B6F3BD3CAD /* BVService_Bonjour.cpp */; };
+		5A659D738A6A66E809D85471 /* BVApp_ConsoleClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 09BA222880D34C0D4498B0BF /* BVApp_ConsoleClient.cpp */; };
+		692B6718F11271CC4693BFEE /* BVTCPConnectionManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1EB38BBCD730653BB7C888B2 /* BVTCPConnectionManager.cpp */; };
+		7E91CFCE9EF903B4FE2DDA61 /* linked_list.c in Sources */ = {isa = PBXBuildFile; fileRef = 377B0C5147E0FA8138BAEDD2 /* linked_list.c */; };
+		7F86B1E884FB7D97DF85C93D /* LocalChatGUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680B46655028EEE3F458EA3B /* LocalChatGUIApp.swift */; };
+		88F7DCE9BDB22C6A3994BCC9 /* BVDiscovery_Bonjour.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7AA9F59EA80F4D02A149805F /* BVDiscovery_Bonjour.cpp */; };
+		B5CD1FFACEAA6A37D2F2ADF0 /* BVChatBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = C395FDE184D1F649C87844A7 /* BVChatBridge.mm */; };
+		BC53EB6B64301CFAF132EB21 /* BVBroker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1D41EA17F49B49DB9AFD85C8 /* BVBroker.cpp */; };
+		C1C000F3F36E9D927278D147 /* bonjour_api.c in Sources */ = {isa = PBXBuildFile; fileRef = 6FDE4FBE63C7ACE5EE377F3F /* bonjour_api.c */; };
+		D548AB6DD9FB3FD2F175D9CA /* ChatModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBE8B1EAE1BBAF3C044E73A /* ChatModel.swift */; };
+		F79E0B77FD94B23E9DDA0DA6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EA72D9CEF4F38F3B6FBAE27 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		09BA222880D34C0D4498B0BF /* BVApp_ConsoleClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVApp_ConsoleClient.cpp; sourceTree = "<group>"; };
+		136C2C5EA37EF1B81F001CE6 /* bonjour_api_bridge.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = bonjour_api_bridge.cpp; sourceTree = "<group>"; };
+		150455F10B2C6A6AA8FE7C63 /* LocalChatGUI-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LocalChatGUI-Bridging-Header.h"; sourceTree = "<group>"; };
+		1D41EA17F49B49DB9AFD85C8 /* BVBroker.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVBroker.cpp; sourceTree = "<group>"; };
+		1EA72D9CEF4F38F3B6FBAE27 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1EB38BBCD730653BB7C888B2 /* BVTCPConnectionManager.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVTCPConnectionManager.cpp; sourceTree = "<group>"; };
+		24EA7F7E16084AFAEE4F1B72 /* LocalChatGUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalChatGUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		377B0C5147E0FA8138BAEDD2 /* linked_list.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = linked_list.c; sourceTree = "<group>"; };
+		60C42423A1F1FFE716F47B75 /* BVChatBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BVChatBridge.h; sourceTree = "<group>"; };
+		680B46655028EEE3F458EA3B /* LocalChatGUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalChatGUIApp.swift; sourceTree = "<group>"; };
+		6FDE4FBE63C7ACE5EE377F3F /* bonjour_api.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bonjour_api.c; sourceTree = "<group>"; };
+		78584E3CD2576B792A143A02 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7AA9F59EA80F4D02A149805F /* BVDiscovery_Bonjour.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVDiscovery_Bonjour.cpp; sourceTree = "<group>"; };
+		9403421BF0991699F3E37025 /* BVChatCore.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = BVChatCore.hpp; sourceTree = "<group>"; };
+		95DE5135DC52ACE01E6ACBA9 /* BVApp_GuiClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = BVApp_GuiClient.hpp; sourceTree = "<group>"; };
+		C395FDE184D1F649C87844A7 /* BVChatBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BVChatBridge.mm; sourceTree = "<group>"; };
+		C514C4081348BA2F67956444 /* BVTCPSession.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVTCPSession.cpp; sourceTree = "<group>"; };
+		C95BE71A8E2679B6F3BD3CAD /* BVService_Bonjour.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BVService_Bonjour.cpp; sourceTree = "<group>"; };
+		ECBE8B1EAE1BBAF3C044E73A /* ChatModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModel.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		6716983C5F85C090A1DDA283 /* LocalChat */ = {
+			isa = PBXGroup;
+			children = (
+				7E916D958A2D22F92E2BF4BE /* src */,
+			);
+			name = LocalChat;
+			path = ..;
+			sourceTree = "<group>";
+		};
+		7028D5746B4B750A3A0C6607 /* LocalChatGUI */ = {
+			isa = PBXGroup;
+			children = (
+				ECBE8B1EAE1BBAF3C044E73A /* ChatModel.swift */,
+				1EA72D9CEF4F38F3B6FBAE27 /* ContentView.swift */,
+				78584E3CD2576B792A143A02 /* Info.plist */,
+				150455F10B2C6A6AA8FE7C63 /* LocalChatGUI-Bridging-Header.h */,
+				680B46655028EEE3F458EA3B /* LocalChatGUIApp.swift */,
+			);
+			path = LocalChatGUI;
+			sourceTree = "<group>";
+		};
+		7E916D958A2D22F92E2BF4BE /* src */ = {
+			isa = PBXGroup;
+			children = (
+				136C2C5EA37EF1B81F001CE6 /* bonjour_api_bridge.cpp */,
+				6FDE4FBE63C7ACE5EE377F3F /* bonjour_api.c */,
+				09BA222880D34C0D4498B0BF /* BVApp_ConsoleClient.cpp */,
+				1D41EA17F49B49DB9AFD85C8 /* BVBroker.cpp */,
+				7AA9F59EA80F4D02A149805F /* BVDiscovery_Bonjour.cpp */,
+				C95BE71A8E2679B6F3BD3CAD /* BVService_Bonjour.cpp */,
+				1EB38BBCD730653BB7C888B2 /* BVTCPConnectionManager.cpp */,
+				C514C4081348BA2F67956444 /* BVTCPSession.cpp */,
+				377B0C5147E0FA8138BAEDD2 /* linked_list.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		AC7E3D564848C73B502EF795 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				24EA7F7E16084AFAEE4F1B72 /* LocalChatGUI.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D1B241586249F69DD7559684 = {
+			isa = PBXGroup;
+			children = (
+				95DE5135DC52ACE01E6ACBA9 /* BVApp_GuiClient.hpp */,
+				60C42423A1F1FFE716F47B75 /* BVChatBridge.h */,
+				C395FDE184D1F649C87844A7 /* BVChatBridge.mm */,
+				9403421BF0991699F3E37025 /* BVChatCore.hpp */,
+				6716983C5F85C090A1DDA283 /* LocalChat */,
+				7028D5746B4B750A3A0C6607 /* LocalChatGUI */,
+				AC7E3D564848C73B502EF795 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		FABE574401BF0769FAC36280 /* LocalChatGUI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CB1CA3972774A2D0FCFA7DB9 /* Build configuration list for PBXNativeTarget "LocalChatGUI" */;
+			buildPhases = (
+				F2E891C243541B412BB0034F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LocalChatGUI;
+			packageProductDependencies = (
+			);
+			productName = LocalChatGUI;
+			productReference = 24EA7F7E16084AFAEE4F1B72 /* LocalChatGUI.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5CFEE7C6B36B058F74D673A0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 405BB5814280B615E307F11C /* Build configuration list for PBXProject "LocalChatGUI" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D1B241586249F69DD7559684;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				FABE574401BF0769FAC36280 /* LocalChatGUI */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2E891C243541B412BB0034F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A659D738A6A66E809D85471 /* BVApp_ConsoleClient.cpp in Sources */,
+				BC53EB6B64301CFAF132EB21 /* BVBroker.cpp in Sources */,
+				B5CD1FFACEAA6A37D2F2ADF0 /* BVChatBridge.mm in Sources */,
+				88F7DCE9BDB22C6A3994BCC9 /* BVDiscovery_Bonjour.cpp in Sources */,
+				35072A05814E4C5A2EC5072F /* BVService_Bonjour.cpp in Sources */,
+				692B6718F11271CC4693BFEE /* BVTCPConnectionManager.cpp in Sources */,
+				25AB2DEBDC22F1FCFCA9ACBC /* BVTCPSession.cpp in Sources */,
+				D548AB6DD9FB3FD2F175D9CA /* ChatModel.swift in Sources */,
+				F79E0B77FD94B23E9DDA0DA6 /* ContentView.swift in Sources */,
+				7F86B1E884FB7D97DF85C93D /* LocalChatGUIApp.swift in Sources */,
+				C1C000F3F36E9D927278D147 /* bonjour_api.c in Sources */,
+				2029BACFBB8429C52E9D9209 /* bonjour_api_bridge.cpp in Sources */,
+				7E91CFCE9EF903B4FE2DDA61 /* linked_list.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1FF76FF636611E4F69ED8B3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = LocalChatGUI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.greggjaskiewicz.LocalChatGUI;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		728D5D5F4FC453AD07888525 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE",
+					"RESOLUTION_POLICY_HARD_FAIL=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../include",
+					"$(SRCROOT)",
+					/opt/homebrew/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/opt/homebrew/lib,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lspdlog",
+					"-lfmt",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OBJC_BRIDGING_HEADER = "LocalChatGUI/LocalChatGUI-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		89703AF9CEF21418C4749F51 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = LocalChatGUI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.greggjaskiewicz.LocalChatGUI;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A6966A970FAC56E37CF034F1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE",
+					"RESOLUTION_POLICY_HARD_FAIL=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../include",
+					"$(SRCROOT)",
+					/opt/homebrew/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/opt/homebrew/lib,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lspdlog",
+					"-lfmt",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OBJC_BRIDGING_HEADER = "LocalChatGUI/LocalChatGUI-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		405BB5814280B615E307F11C /* Build configuration list for PBXProject "LocalChatGUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				728D5D5F4FC453AD07888525 /* Debug */,
+				A6966A970FAC56E37CF034F1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CB1CA3972774A2D0FCFA7DB9 /* Build configuration list for PBXNativeTarget "LocalChatGUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89703AF9CEF21418C4749F51 /* Debug */,
+				1FF76FF636611E4F69ED8B3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5CFEE7C6B36B058F74D673A0 /* Project object */;
+}

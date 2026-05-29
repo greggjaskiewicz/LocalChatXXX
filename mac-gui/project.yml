@@ -1,0 +1,70 @@
+# xcodegen spec for the macOS SwiftUI front-end.
+#   brew install xcodegen          # if needed
+#   cd mac-gui && xcodegen generate && open LocalChatGUI.xcodeproj
+#
+# Builds the GUI app from the Swift + Obj-C++ bridge AND the core C++ sources
+# straight from ../src (so it never depends on CMake artifacts or their arch).
+# Nothing in the core / CLI / CMake build is touched.
+name: LocalChatGUI
+
+options:
+  bundleIdPrefix: com.greggjaskiewicz
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CLANG_CXX_LANGUAGE_STANDARD: "c++17"
+    CLANG_CXX_LIBRARY: "libc++"
+    CLANG_ENABLE_OBJC_ARC: true
+    SWIFT_OBJC_BRIDGING_HEADER: "LocalChatGUI/LocalChatGUI-Bridging-Header.h"
+    # App Sandbox is OFF (no entitlements file): local networking + arbitrary
+    # file paths "just work". The local-network prompt uses the Info.plist key.
+    GCC_PREPROCESSOR_DEFINITIONS:
+      - "$(inherited)"
+      - "SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE"
+      - "RESOLUTION_POLICY_HARD_FAIL=1"
+    HEADER_SEARCH_PATHS:
+      - "$(inherited)"
+      - "$(SRCROOT)/../include"
+      - "$(SRCROOT)"
+      - "/opt/homebrew/include"
+    LIBRARY_SEARCH_PATHS:
+      - "$(inherited)"
+      - "/opt/homebrew/lib"
+    OTHER_LDFLAGS:
+      - "$(inherited)"
+      - "-lspdlog"
+      - "-lfmt"
+
+targets:
+  LocalChatGUI:
+    type: application
+    platform: macOS
+    info:
+      path: LocalChatGUI/Info.plist
+      properties:
+        CFBundleDisplayName: LocalChat
+        LSMinimumSystemVersion: "13.0"
+        NSLocalNetworkUsageDescription: "LocalChat discovers and connects to peers on your local network."
+        NSBonjourServices:
+          - "_localchathost._tcp"
+    sources:
+      # Swift + bridge (mac-gui)
+      - path: LocalChatGUI
+      - path: BVChatBridge.mm
+      - path: BVChatBridge.h
+      - path: BVChatCore.hpp
+      - path: BVApp_GuiClient.hpp
+      # Core C++ sources compiled straight from ../src (NOT modified)
+      - path: ../src/BVApp_ConsoleClient.cpp   # base reused by BVApp_GuiClient
+      - path: ../src/BVBroker.cpp
+      - path: ../src/BVTCPConnectionManager.cpp
+      - path: ../src/BVTCPSession.cpp
+      - path: ../src/BVService_Bonjour.cpp
+      - path: ../src/BVDiscovery_Bonjour.cpp
+      - path: ../src/bonjour_api.c
+      - path: ../src/bonjour_api_bridge.cpp
+      - path: ../src/linked_list.c
