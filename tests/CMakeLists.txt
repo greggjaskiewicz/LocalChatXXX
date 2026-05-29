@@ -45,16 +45,21 @@ target_link_libraries(
   GTest::gtest_main
 )
 
-add_executable(
-  file_transfer_test_Integrity
-  file_transfer_test_Integrity.cpp
-)
+# This test file is untracked and lives under the git-ignored tests/ dir, so
+# clean_all.sh (git clean -ffXd) can delete it. Only wire it up when present so
+# its absence never breaks the build.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/file_transfer_test_Integrity.cpp")
+  add_executable(
+    file_transfer_test_Integrity
+    file_transfer_test_Integrity.cpp
+  )
 
-target_link_libraries(
-  file_transfer_test_Integrity
-  GTest::gtest_main
-  spdlog::spdlog
-)
+  target_link_libraries(
+    file_transfer_test_Integrity
+    GTest::gtest_main
+    spdlog::spdlog
+  )
+endif()
 
 add_executable(
   linked_list_test_Basic
@@ -136,7 +141,9 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(dns_sd_test_Registration)
 gtest_discover_tests(linked_list_test_Basic)
-gtest_discover_tests(file_transfer_test_Integrity)
+if(TARGET file_transfer_test_Integrity)
+  gtest_discover_tests(file_transfer_test_Integrity)
+endif()
 
 # TODO: Run all tests, either link every object to a single executable and run
 #       or write script that executes all tests
