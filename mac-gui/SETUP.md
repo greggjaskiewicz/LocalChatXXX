@@ -94,18 +94,23 @@ Build & run. Discovered peers auto-connect (the core resolves + initiates the
 session automatically), then appear under **Connected**. Select one to chat;
 the paperclip sends a file.
 
-## File accept / reject — implemented (post-receipt Keep/Discard)
+## File offer / accept / reject — real handshake
 
-The wire protocol has **no pre-transfer handshake** — a sender streams a file and
-the receiver auto-saves it to `data/<peer>/<name>`. So "reject *before* download"
-isn't possible without adding a `CONFIRM_CAN_RECEIVE_FILE` round-trip to the
-session protocol (which would touch the author's core).
+The protocol now asks **before** anything transfers:
 
-What's wired up instead, **additively**: when a file finishes arriving,
-`BVApp_GuiClient` records it and fires `chatBridgeFileReceived`; the GUI shows a
-**Keep / Discard** alert. *Discard* deletes the file from disk
-(`-discardFileAtPath:`); *Keep* leaves it. The file is already on disk at prompt
-time — that's the protocol's limit, not the UI's.
+```
+sender:   InitiateFileTransfer -> FILE_OFFER(key, name, size); request kept pending
+receiver: FILE_OFFER -> APP_FILE_OFFER -> GUI prompts (CLI auto-accepts)
+                     -> FILE_ACCEPT / FILE_REJECT(key)
+sender:   FILE_ACCEPT -> build the transfer, stream BEGIN + chunks
+          FILE_REJECT -> drop the pending request; nothing is sent
+```
 
-If you later want true reject-before-transfer, that's the protocol handshake
-above — a deliberate core change, your call.
+The transfer object (`BVFileTransferContext`) is unchanged — it's just created
+*on accept* instead of immediately. `BVApp_ConsoleClient::HandleFileOffer`
+auto-accepts (CLI); the GUI overrides it to prompt (`-acceptFile:`/`-rejectFile:`
+reply with FILE_ACCEPT/REJECT). On reject, no bytes leave the sender.
+
+**Both machines must run this build.** Mismatches degrade gracefully (no crash):
+an old receiver never understands the OFFER so the file just never sends; an old
+sender streams without offering so the new receiver gets it with no prompt.

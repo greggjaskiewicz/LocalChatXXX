@@ -100,6 +100,10 @@ namespace BVTCPMessageType
     const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_TRANSFER_BEGIN      = 6;
     const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_TRANSFER_CHUNK_SENT = 7;
     const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_TRANSFER_END        = 8; // last chunk
+    // File-transfer permission handshake (sent as standard file-header frames):
+    const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_OFFER  = 9;  // sender: "may I send <name>?"
+    const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_ACCEPT = 10; // receiver: yes -> sender streams
+    const uint8_t BVSESSIONREGULARMESSAGETYPE_FILE_REJECT = 11; // receiver: no  -> sender aborts
 }
 
 // BVNode is data regarding another host in the network.

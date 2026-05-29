@@ -17,6 +17,9 @@
 #include <mutex>
 #include <vector>
 #include <string>
+#include <set>
+#include <map>
+#include <cstdint>
 #include <system_error>
 #include <filesystem>
 #include "BVApp_ConsoleClient.hpp"
@@ -27,16 +30,17 @@ enum class BVGuiEvent
     SessionsChanged,
     MessagesChanged,
     FileProgress,
-    FileReceived
+    FileOffered
 };
 
-// A file that finished arriving and is now on disk, pending the user's
-// Keep/Discard decision in the GUI.
-struct BVReceivedFile
+// An incoming file offer, surfaced as the transfer BEGINS so the user can
+// Accept/Reject up-front (the bytes still stream; Reject deletes on arrival).
+struct BVFileOffer
 {
-    std::string serviceName;
-    std::string fileName;
-    std::string path;
+    std::uint32_t correlationKey;
+    std::string   fileName;
+    std::string   sender;
+    std::uint64_t size;
 };
 
 class BVApp_GuiClient : public BVApp_ConsoleClient
@@ -92,6 +96,21 @@ public:
             return {};
         }
         return it->second.logV;
+    }
+
+    // Latest file-transfer status line for the UI, e.g. "Receiving x.png… 45%",
+    // "Received x.png", "Sent y.png". Empty when nothing is in flight.
+    std::string TransferStatus(void)
+    {
+        // Live outgoing send wins (it has no event stream, only this slot);
+        // otherwise fall back to the incoming/"Sent"/"Received" status.
+        const std::string outgoing = GetConnectionManager().CurrentOutgoingTransferStatus();
+        if (!outgoing.empty())
+        {
+            return outgoing;
+        }
+        std::lock_guard<std::mutex> l(xferMutex);
+        return xferStatus;
     }
 
     // ---- actions (reuse the author's send/file APIs) ----------------------
@@ -155,6 +174,15 @@ public:
             }
             std::filesystem::path mutablePath = p;
             GetConnectionManager().InitiateFileTransferWithSession(sid, mutablePath);
+            const std::string name = p.filename().string();
+            AppendChatEntry(serviceName, "\xF0\x9F\x93\x8E Sent file: " + name,
+                            GetThisMachineServiceData().hostname);
+            {
+                std::lock_guard<std::mutex> l(xferMutex);
+                xferStatus = "Sent " + name;
+            }
+            Notify(BVGuiEvent::MessagesChanged);
+            Notify(BVGuiEvent::FileProgress);
         });
         return true;
     }
@@ -184,23 +212,101 @@ public:
         Notify(BVGuiEvent::MessagesChanged);
         return s;
     }
+    // Incoming OFFER (peer asks before sending). Surface it for Accept/Reject;
+    // do NOT auto-accept (that's the CLI's behavior we override here).
+    BVStatus HandleFileOffer(std::unique_ptr<std::any> dp) override
+    {
+        if (dp)
+        {
+            try
+            {
+                const BVTCPFileData fd = std::any_cast<BVTCPFileData>(*dp);
+                std::string meta(fd.fdata.begin(), fd.fdata.end()); // "service|filename"
+                const auto z = meta.find('\0');
+                if (z != std::string::npos) { meta.resize(z); }
+                const auto bar = meta.find('|');
+                const std::string sender = (bar == std::string::npos) ? std::string{} : meta.substr(0, bar);
+                const std::string name   = (bar == std::string::npos) ? meta : meta.substr(bar + 1);
+                {
+                    std::lock_guard<std::mutex> l(offerMutex);
+                    pendingOffers.push_back(BVFileOffer{fd.correlationKey, name, sender, fd.fsize});
+                    offerSenders[fd.correlationKey] = sender;
+                }
+                Notify(BVGuiEvent::FileOffered);
+            }
+            catch (const std::bad_any_cast&)
+            {
+            }
+        }
+        return BVStatus::BVSTATUS_OK;
+    }
+
     BVStatus HandleFileTransferBegin(std::unique_ptr<std::any> dp) override
     {
+        // Transfer is starting (peer already accepted). Just track progress.
+        if (dp)
+        {
+            try
+            {
+                const BVTCPFileData fd = std::any_cast<BVTCPFileData>(*dp);
+                std::string meta(fd.fdata.begin(), fd.fdata.end());
+                const auto z = meta.find('\0');
+                if (z != std::string::npos) { meta.resize(z); }
+                const auto bar = meta.find('|');
+                const std::string name = (bar == std::string::npos) ? meta : meta.substr(bar + 1);
+                std::lock_guard<std::mutex> l(xferMutex);
+                xferName = name;
+                xferTotal = fd.fsize;
+                xferReceived = 0;
+                xferStatus = "Receiving " + name + "\xE2\x80\xA6 0%";
+            }
+            catch (const std::bad_any_cast&)
+            {
+            }
+        }
         BVStatus s = BVApp_ConsoleClient::HandleFileTransferBegin(std::move(dp));
-        Notify(BVGuiEvent::SessionsChanged);
+        Notify(BVGuiEvent::FileProgress);
         return s;
     }
+
+    // Drains offers that arrived since the last call (the GUI prompts for each).
+    std::vector<BVFileOffer> TakeFileOffers(void)
+    {
+        std::lock_guard<std::mutex> l(offerMutex);
+        std::vector<BVFileOffer> out;
+        out.swap(pendingOffers);
+        return out;
+    }
+    void AcceptFile(std::uint32_t correlationKey) { RespondToOffer(correlationKey, true); }
+    void RejectFile(std::uint32_t correlationKey) { RespondToOffer(correlationKey, false); }
     BVStatus HandleFileChunkSent(std::unique_ptr<std::any> dp) override
     {
+        if (dp)
+        {
+            try
+            {
+                const BVTCPFileData fd = std::any_cast<BVTCPFileData>(*dp);
+                std::lock_guard<std::mutex> l(xferMutex);
+                xferReceived += fd.csize;
+                if (xferTotal > 0)
+                {
+                    std::uint64_t pct = (xferReceived * 100) / xferTotal;
+                    if (pct > 100) { pct = 100; }
+                    xferStatus = "Receiving " + xferName + "\xE2\x80\xA6 " + std::to_string(pct) + "%";
+                }
+            }
+            catch (const std::bad_any_cast&)
+            {
+            }
+        }
         BVStatus s = BVApp_ConsoleClient::HandleFileChunkSent(std::move(dp));
         Notify(BVGuiEvent::FileProgress);
         return s;
     }
     BVStatus HandleFileTransferEnd(std::unique_ptr<std::any> dp) override
     {
-        // Capture which file is completing BEFORE the base handler erases its
-        // per-transfer bookkeeping, so the GUI can offer Keep/Discard once the
-        // file has landed on disk.
+        // A rejected transfer never starts (the sender drops it), so anything
+        // that reaches END was accepted -> just record it.
         std::string serviceName;
         std::string fileName;
         bool haveInfo = false;
@@ -226,36 +332,65 @@ public:
 
         if (haveInfo)
         {
-            std::error_code ec;
-            const std::filesystem::path path =
-                std::filesystem::current_path(ec) / "data" / serviceName / fileName;
-            {
-                std::lock_guard<std::mutex> l(receivedFilesMutex);
-                receivedFiles.push_back(BVReceivedFile{serviceName, fileName, path.string()});
-            }
-            Notify(BVGuiEvent::FileReceived);
+            AppendChatEntry(serviceName, "\xF0\x9F\x93\x8E Received file: " + fileName, serviceName);
+            std::lock_guard<std::mutex> l(xferMutex);
+            xferStatus = "Received " + fileName;
+            xferReceived = 0;
+            xferTotal = 0;
         }
-        else
-        {
-            Notify(BVGuiEvent::MessagesChanged);
-        }
+        Notify(BVGuiEvent::MessagesChanged);
         return s;
-    }
-
-    // Drains the files that have arrived since the last call (the GUI shows a
-    // Keep/Discard prompt for each).
-    std::vector<BVReceivedFile> TakeReceivedFiles(void)
-    {
-        std::lock_guard<std::mutex> l(receivedFilesMutex);
-        std::vector<BVReceivedFile> out;
-        out.swap(receivedFiles);
-        return out;
     }
 
 private:
     Observer observer;
-    std::mutex receivedFilesMutex;
-    std::vector<BVReceivedFile> receivedFiles;
+
+    // Incoming file offers awaiting Accept/Reject, plus key -> sender so the
+    // reply can be routed back to the offering peer.
+    std::mutex offerMutex;
+    std::vector<BVFileOffer> pendingOffers;
+    std::map<std::uint32_t, std::string> offerSenders;
+
+    // Send the Accept/Reject reply on the io thread (it touches the session).
+    void RespondToOffer(std::uint32_t key, bool accept)
+    {
+        std::string sender;
+        {
+            std::lock_guard<std::mutex> l(offerMutex);
+            auto it = offerSenders.find(key);
+            if (it != offerSenders.end()) { sender = it->second; offerSenders.erase(it); }
+        }
+        if (sender.empty()) { return; }
+        boost::asio::post(GetIoContext(), [this, sender, key, accept]()
+        {
+            GetConnectionManager().RespondToFileOffer(sender, key, accept);
+        });
+    }
+
+    // File-transfer progress line (incoming) + outgoing "Sent" status.
+    std::mutex xferMutex;
+    std::string xferStatus;
+    std::string xferName;
+    std::uint64_t xferTotal{0};
+    std::uint64_t xferReceived{0};
+
+    // Append a synthetic chat-log entry (used for "Sent/Received file: …").
+    void AppendChatEntry(const std::string& serviceName,
+                         const std::string& text,
+                         const std::string& sender)
+    {
+        std::lock_guard<std::mutex> l(this->chatLogsMapMutex);
+        const BVChatMessage m(text, 0, sender);
+        try
+        {
+            chatLogsM.at(serviceName).AddMessage(m);
+        }
+        catch (const std::out_of_range&)
+        {
+            chatLogsM.emplace(serviceName, BVChatMessageLog(serviceName, m));
+        }
+    }
+
     void Notify(BVGuiEvent e)
     {
         if (observer)

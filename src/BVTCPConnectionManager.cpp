@@ -44,6 +44,18 @@ acceptorSocket(_ioContext)
 // Initiate a Client connection with a Node
 BVStatus BVTCPConnectionManager::InitiateSessionWithNode(const BVNode nodeData)
 {
+    // Glare avoidance: with mutual discovery, both peers would dial each other at
+    // the same instant and each then close the other's inbound as a "duplicate",
+    // leaving two half-dead sockets (chat/file silently lost). Make only the
+    // lexicographically-smaller service name dial out; the larger one waits to
+    // accept. Both ends evaluate the same total ordering, so exactly one
+    // connection is created regardless of who discovers whom first.
+    if (!(thisMachineHostData.serviceName < nodeData.serviceName))
+    {
+        LogTrace("InitiateSessionWithNode: deferring outbound to {} (peer dials; glare avoidance)",
+                 nodeData.serviceName);
+        return BVStatus::BVSTATUS_OK;
+    }
     // Wait - is there already a connection with this peer/node?
     if (IsSessionAlreadyPresent(nodeData))
     {

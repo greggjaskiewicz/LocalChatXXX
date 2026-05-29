@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 #include <atomic>
+#include <functional>
+#include <cstdint>
 #include <boost/asio.hpp>
 #include "BVTCPCommon.hpp"
 #include "BVTCPSession.hpp"
@@ -41,6 +43,9 @@ private:
     const std::string    fname;
     
     std::shared_ptr<BVTCPSession> session_p;
+    // Optional progress callback (sent, total, name) fired after each chunk so a
+    // GUI can show outgoing-transfer progress. Default-empty -> no-op (CLI).
+    std::function<void(std::uint32_t, std::uint32_t, const std::string&)> progress_F;
     MailboxGetter mailbox_F; // this will directly send messages to app. But for what?
     // Maybe instead of sending a message, just include a function that triggers the 
     // RemoveFileTransferContext from manager..
@@ -137,6 +142,7 @@ private:
             // window provides the back-pressure. No artificial sleep needed.
             session_p->WriteFileChunkSync(fChunk, csize);
             bytesSent += bytesRead;
+            if (progress_F) { progress_F(bytesSent, fsize, fname); }
             // Single in-place progress line (\r overwrites) instead of one
             // "Sending..." per chunk.
             const uint32_t pct = (fsize > 0)
@@ -190,11 +196,13 @@ public:
     BVFileTransferContext(std::shared_ptr<BVTCPSession> _session_p,
                           std::filesystem::path& _fpath,
                           const uint32_t _ftcid,
-                          MailboxGetter _mailbox_F) :
+                          MailboxGetter _mailbox_F,
+                          std::function<void(std::uint32_t, std::uint32_t, const std::string&)> _progress_F = {}) :
     session_p(_session_p),
     fsize(std::filesystem::file_size(_fpath)),
     fname(std::filesystem::path(_fpath).filename()),
     ftcid(_ftcid),
+    progress_F(_progress_F),
     mailbox_F(_mailbox_F)
     {
         // 1. Get file size

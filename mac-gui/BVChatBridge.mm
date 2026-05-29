@@ -5,10 +5,30 @@
 
 #include <memory>
 #include <string>
+#include <cstdlib>    // getenv
+#include <filesystem>
 #include <fcntl.h>    // open
-#include <unistd.h>   // isatty, dup2, close
+#include <unistd.h>   // isatty, dup2, close, chdir
 #include <util.h>     // openpty
 #include "BVChatCore.hpp"
+
+// The core writes received files to "data/<peer>/<name>" relative to the working
+// directory. A windowed app's cwd is "/" (unwritable), so create_directories()
+// fails, the file handler returns an error, and BVComponent::ListenToMail throws
+// -> the app aborts. Point the process at a writable working dir so receives
+// (and the relative data/ tree) work.
+static void BVSetWorkingDir(void)
+{
+    const char* home = std::getenv("HOME");
+    if (!home)
+    {
+        return;
+    }
+    std::error_code ec;
+    const std::filesystem::path dir = std::filesystem::path(home) / "LocalChatGUI";
+    std::filesystem::create_directories(dir, ec);
+    ::chdir(dir.c_str());
+}
 
 // We reuse the console client's logic, which renders its TUI to stdout
 // (ClearScreen / PrintAll / RenderChat). In a windowed app that's just noise.
@@ -56,7 +76,7 @@ static NSString *NS(const std::string &s)
 @implementation BVMessageItem
 @end
 
-@implementation BVReceivedFileItem
+@implementation BVFileOfferItem
 @end
 
 @implementation BVChatBridge
@@ -83,6 +103,7 @@ static NSString *NS(const std::string &s)
 
 - (BOOL)start
 {
+    BVSetWorkingDir();
     BVEnsureStdinIsTTY();
     BVSilenceConsoleStdout();
     __weak BVChatBridge *weakSelf = self;
@@ -112,9 +133,9 @@ static NSString *NS(const std::string &s)
                     if ([d respondsToSelector:@selector(chatBridgeFileProgress)])
                         [d chatBridgeFileProgress];
                     break;
-                case BVGuiEvent::FileReceived:
-                    if ([d respondsToSelector:@selector(chatBridgeFileReceived)])
-                        [d chatBridgeFileReceived];
+                case BVGuiEvent::FileOffered:
+                    if ([d respondsToSelector:@selector(chatBridgeFileOffered)])
+                        [d chatBridgeFileOffered];
                     break;
             }
         });
@@ -183,28 +204,27 @@ static NSString *NS(const std::string &s)
     return _core->sendFile(peer.UTF8String, filePath.UTF8String) ? YES : NO;
 }
 
-- (NSArray<BVReceivedFileItem *> *)takeReceivedFiles
+- (NSArray<BVFileOfferItem *> *)takeFileOffers
 {
-    NSMutableArray<BVReceivedFileItem *> *out = [NSMutableArray array];
-    for (const auto &f : _core->takeReceivedFiles())
+    NSMutableArray<BVFileOfferItem *> *out = [NSMutableArray array];
+    for (const auto &o : _core->takeFileOffers())
     {
-        BVReceivedFileItem *item = [BVReceivedFileItem new];
-        item.fileName = NS(f.fileName);
-        item.sender   = NS(f.serviceName);
-        item.path     = NS(f.path);
+        BVFileOfferItem *item = [BVFileOfferItem new];
+        item.correlationKey = o.correlationKey;
+        item.fileName       = NS(o.fileName);
+        item.sender         = NS(o.sender);
+        item.size           = o.size;
         [out addObject:item];
     }
     return out;
 }
 
-- (BOOL)discardFileAtPath:(NSString *)path
+- (void)acceptFile:(uint32_t)correlationKey { _core->acceptFile(correlationKey); }
+- (void)rejectFile:(uint32_t)correlationKey { _core->rejectFile(correlationKey); }
+
+- (NSString *)transferStatus
 {
-    if (!path)
-    {
-        return NO;
-    }
-    NSError *err = nil;
-    return [[NSFileManager defaultManager] removeItemAtPath:path error:&err];
+    return NS(_core->transferStatus());
 }
 
 - (NSString *)thisHostname

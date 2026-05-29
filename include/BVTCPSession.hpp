@@ -406,6 +406,7 @@ public:
     // Returns true if we have to return early.
     bool OnReceiveStandardFrame(void);
     void OnReceiveFileTransferBegin(void);
+    void OnReceiveFileOffer(void);
     void OnReceiveFileChunkSent(void);
     void OnReceiveFileTransferEnd(void);
     // void OnReceiveNodeGoodbyeFrame(void);
@@ -533,6 +534,30 @@ public:
         LogTrace("Session [{}]: Sync-wrote file frame {} bytes (payload {})",
             this->sessionData_p->sessionID, frame.size(), payloadBytes);
         return true;
+    }
+
+    // Send a file OFFER (msgType FILE_OFFER) carrying name + size + key, as a
+    // standard 138-byte file-header frame (received via the normal frame path,
+    // does NOT switch the peer into chunk-reading).
+    void SendFileOffer(std::uint32_t correlationKey, std::uint32_t fsize, const std::string& name)
+    {
+        std::string payloadStr = this->sessionData_p->thisMachineServiceName + "|" + name;
+        std::vector<char> payload{payloadStr.begin(), payloadStr.end()};
+        payload.push_back('\0');
+        const std::uint64_t metadata = static_cast<std::uint64_t>(fsize);
+        BVTCPFileHeader header =
+            ConstructFileHeader(BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_OFFER, correlationKey, metadata);
+        BVTCPFileChunk chunk = ConstructFileChunk(header, payload);
+        WriteFileChunkSync(chunk, MESSAGE_FRAME_SIZE_BYTES - FILE_HEADER_SIZE_BYTES);
+    }
+
+    // Send a tiny FILE_ACCEPT / FILE_REJECT control frame echoing the key.
+    void SendFileControl(std::uint32_t correlationKey, std::uint8_t msgType)
+    {
+        std::vector<char> empty;
+        BVTCPFileHeader header = ConstructFileHeader(msgType, correlationKey, 0);
+        BVTCPFileChunk chunk = ConstructFileChunk(header, empty);
+        WriteFileChunkSync(chunk, MESSAGE_FRAME_SIZE_BYTES - FILE_HEADER_SIZE_BYTES);
     }
 
     template<typename PayloadType>

@@ -78,6 +78,17 @@ private:
     // It means that only one file per session can be sent at the same time
     std::map<uint32_t, std::unique_ptr<BVFileTransferContext>> fileTransferContext_m;
 
+    // Offers sent but not yet accepted/rejected by the peer. The actual transfer
+    // context is only created once the peer accepts (key -> session + file).
+    std::map<uint32_t, std::pair<SessionID, std::filesystem::path>> pendingOutgoing_m;
+
+    // Thread-safe progress slot for the current outgoing transfer, fed by the
+    // file-transfer context's progress callback and read by the GUI.
+    std::mutex outProgressMutex;
+    std::string outProgressName;
+    std::uint32_t outProgressSent{0};
+    std::uint32_t outProgressTotal{0};
+
     NodeID GetNodeIDByServiceName(const std::string& _serviceName, BVStatus& status_out)
     {
         NodeID id = 0;
@@ -474,26 +485,91 @@ public:
     // File utilities
 
     // BVFileTransferContext    
-    BVStatus InitiateFileTransferWithSession(const SessionID& sid, 
+    // Progress of the current outgoing transfer for the UI, e.g.
+    // "Sending x.png… 45%". Empty when nothing is actively sending.
+    std::string CurrentOutgoingTransferStatus(void)
+    {
+        std::lock_guard<std::mutex> l(outProgressMutex);
+        if (outProgressTotal == 0 || outProgressSent >= outProgressTotal)
+        {
+            return std::string{};
+        }
+        const std::uint32_t pct = static_cast<std::uint32_t>(
+            (static_cast<std::uint64_t>(outProgressSent) * 100) / outProgressTotal);
+        return "Sending " + outProgressName + "\xE2\x80\xA6 " + std::to_string(pct) + "%";
+    }
+
+    // Step 1 of a send: offer the file and remember it as pending. The transfer
+    // only really starts (BEGIN + chunks) once the peer sends FILE_ACCEPT, which
+    // lands in SignalFileTransfer(). On FILE_REJECT the pending entry is dropped.
+    BVStatus InitiateFileTransferWithSession(const SessionID& sid,
                                              std::filesystem::path& _fpath)
     {
         static uint32_t ftcid = 0;
-        BVStatus status = BVStatus::BVSTATUS_OK;
-        // We can calso not clear the FileTransferContext... if it's just a couple of bytes.
-        // Best design would be to send the message with the correlationKey to this host when the other
-        // receives FileTransferEnd and remove it. Let's just leave it at ftcid in the std::map for now...
-        // We can also just send correlationKey, key to this map as SessionID.
-        std::unique_ptr<BVFileTransferContext> ftcp = 
-            std::make_unique<BVFileTransferContext>(sessions_m.at(sid), _fpath, ftcid, mailbox_F);
+        const uint32_t key = ftcid++;
+        std::error_code ec;
+        const uint32_t fsize = static_cast<uint32_t>(std::filesystem::file_size(_fpath, ec));
+        const std::string name = _fpath.filename().string();
+
+        pendingOutgoing_m[key] = std::make_pair(sid, _fpath);
+        sessions_m.at(sid)->SendFileOffer(key, fsize, name);
+        LogTrace("[BVTCPConnectionManager]: Sent FILE_OFFER key={} '{}' ({} bytes) on session {}",
+                 key, name, fsize, sid);
+        return BVStatus::BVSTATUS_OK;
+    }
+
+    // Peer's verdict on one of our offers. Accept -> build the real transfer;
+    // reject -> forget it (nothing leaves this machine).
+    void SignalFileTransfer(uint32_t correlationKey, bool accept)
+    {
+        auto it = pendingOutgoing_m.find(correlationKey);
+        if (it == pendingOutgoing_m.end())
+        {
+            LogWarn("[BVTCPConnectionManager]: SignalFileTransfer: no pending offer key={}", correlationKey);
+            return;
+        }
+        const SessionID sid = it->second.first;
+        std::filesystem::path fpath = it->second.second;
+        pendingOutgoing_m.erase(it);
+
+        if (!accept)
+        {
+            LogTrace("[BVTCPConnectionManager]: Offer key={} rejected by peer; not sending.", correlationKey);
+            return;
+        }
+        std::unique_ptr<BVFileTransferContext> ftcp =
+            std::make_unique<BVFileTransferContext>(sessions_m.at(sid), fpath, correlationKey, mailbox_F,
+                [this](std::uint32_t sent, std::uint32_t total, const std::string& nm)
+                {
+                    std::lock_guard<std::mutex> l(outProgressMutex);
+                    outProgressName  = nm;
+                    outProgressSent  = sent;
+                    outProgressTotal = total;
+                });
         ftcp->SetLogger(GetLogger());
-        RemoveFileTransferContext(ftcid);
-        fileTransferContext_m.emplace(ftcid, std::move(ftcp));
-        ftcid += 1;
-        LogTrace("[BVTCPConnectionManager::InitiateFileTransferWithSession]: Initiated file transfer with session: id: {}", 
-                    sid);
-        LogDebug("[BVTCPConnectionManager::InitiateFileTransferWithSession]: Size of this session: {}", 
-            sizeof(*fileTransferContext_m.at(ftcid)));
-        return status;
+        RemoveFileTransferContext(correlationKey);
+        fileTransferContext_m.emplace(correlationKey, std::move(ftcp));
+        LogTrace("[BVTCPConnectionManager]: Offer key={} accepted; starting transfer.", correlationKey);
+    }
+
+    // Receiver side: reply to an offer (and tell the sender to stream or stop).
+    void RespondToFileOffer(const std::string& serviceName, uint32_t correlationKey, bool accept)
+    {
+        SessionID sid;
+        if (GetSessionIDFromServiceName(serviceName, sid) != BVStatus::BVSTATUS_OK)
+        {
+            LogWarn("[BVTCPConnectionManager]: RespondToFileOffer: no session for {}", serviceName);
+            return;
+        }
+        std::lock_guard<std::mutex> l(session_m_mutex);
+        auto it = sessions_m.find(sid);
+        if (it == sessions_m.end())
+        {
+            return;
+        }
+        it->second->SendFileControl(correlationKey,
+            accept ? BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_ACCEPT
+                   : BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_REJECT);
     }
 
     // Remove after file transfer ended.

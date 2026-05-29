@@ -228,6 +228,30 @@ bool BVTCPSession::OnReceiveStandardFrame(void)
             OnReceiveFileTransferBegin();
             return true; // DO NOT APPEND A JOB THAT READS INTO MSG BUFFER!
         }
+        case BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_OFFER:
+        {
+            // A peer is asking permission to send us a file. Hand it to the app
+            // (GUI prompts; CLI auto-accepts) and keep reading standard frames so
+            // we receive the FILE_TRANSFER_BEGIN once we accept. Re-arming is the
+            // handler's job (ClearReadBuffer does not re-arm).
+            OnReceiveFileOffer();
+            StartReadingFrames();
+            return true;
+        }
+        case BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_ACCEPT:
+        {
+            // The receiver accepted our offer -> start the real transfer.
+            this->manager_p->SignalFileTransfer(fileHeader.correlationKey, true);
+            StartReadingFrames();
+            return true;
+        }
+        case BVTCPMessageType::BVSESSIONREGULARMESSAGETYPE_FILE_REJECT:
+        {
+            // The receiver declined -> drop the pending transfer, nothing sent.
+            this->manager_p->SignalFileTransfer(fileHeader.correlationKey, false);
+            StartReadingFrames();
+            return true;
+        }
         default:
         {
             LogError(
@@ -237,6 +261,21 @@ bool BVTCPSession::OnReceiveStandardFrame(void)
         }
     }
     return false;
+}
+
+void BVTCPSession::OnReceiveFileOffer(void)
+{
+    BVTCPFileHeader   header  = GetFileHeader(this->sessionData_p->readBuf.get());
+    std::vector<char> payload = GetFileData(this->sessionData_p->readBuf.get()); // "service|name"
+    const uint32_t correlationKey = header.correlationKey;
+    const uint32_t fsize          = static_cast<uint32_t>(header.metadata & 0xFFFFFFFF);
+    LogTrace("[BVTCPSession ({})]: Received FILE_OFFER key={} size={}",
+             this->GetSessionData()->sessionID, correlationKey, fsize);
+    this->manager_p->PutMessageIntoAppMailbox(
+        BVMessage(
+            BVEventType::BVEVENTTYPE_APP_FILE_OFFER,
+            std::make_unique<std::any>(std::make_any<BVTCPFileData>(
+                BVTCPFileData(correlationKey, 0, fsize, payload)))));
 }
 
 void BVTCPSession::OnReceiveFileTransferBegin(void)

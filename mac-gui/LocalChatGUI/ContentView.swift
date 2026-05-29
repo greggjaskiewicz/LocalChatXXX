@@ -25,6 +25,15 @@ struct ContentView: View {
             }
             .navigationTitle("Peers")
             .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+            .safeAreaInset(edge: .bottom) {
+                // Status lives at the bottom of the SIDEBAR, never over the composer.
+                Text(model.statusLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+            }
         } detail: {
             if let peer = model.selectedPeer {
                 ChatView(peer: peer)
@@ -35,23 +44,16 @@ struct ContentView: View {
                     description: model.statusLine)
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            Text(model.statusLine)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-        }
-        // One prompt at a time; re-presents if more files are queued.
+        // One prompt at a time; re-presents if more offers are queued.
         .alert("Incoming file",
-               isPresented: Binding(get: { !model.pendingFiles.isEmpty },
+               isPresented: Binding(get: { !model.pendingOffers.isEmpty },
                                     set: { _ in }),
-               presenting: model.pendingFiles.first) { file in
-            Button("Keep") { model.keepFile(file) }
-            Button("Discard", role: .destructive) { model.discardFile(file) }
-        } message: { file in
-            Text("\(file.sender) sent “\(file.fileName)”. Keep it or discard?")
+               presenting: model.pendingOffers.first) { offer in
+            Button("Accept") { model.acceptOffer(offer) }
+            Button("Reject", role: .destructive) { model.rejectOffer(offer) }
+        } message: { offer in
+            let size = ByteCountFormatter.string(fromByteCount: Int64(offer.size), countStyle: .file)
+            Text("\(offer.sender) wants to send “\(offer.fileName)” (\(size)). Accept?")
         }
     }
 }
@@ -79,6 +81,19 @@ struct ChatView: View {
                         withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                     }
                 }
+            }
+
+            if !model.transferStatus.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.fill")
+                    Text(model.transferStatus)
+                    Spacer()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.quaternary)
             }
 
             Divider()

@@ -17,6 +17,8 @@ BVComponent(_outMbx, _inMbx)
                      std::bind(&BVApp_ConsoleClient::HandleServiceDeregistration, this, std::placeholders::_1));
     RegisterCallback(BVEventType::BVEVENTTYPE_APP_MESSAGE_INCOMING,
                      std::bind(&BVApp_ConsoleClient::HandleMessageIncoming, this, std::placeholders::_1));
+    RegisterCallback(BVEventType::BVEVENTTYPE_APP_FILE_OFFER,
+                     std::bind(&BVApp_ConsoleClient::HandleFileOffer, this, std::placeholders::_1));
     RegisterCallback(BVEventType::BVEVENTTYPE_APP_FILE_TRANSFER_BEGIN,
                      std::bind(&BVApp_ConsoleClient::HandleFileTransferBegin, this, std::placeholders::_1));
     RegisterCallback(BVEventType::BVEVENTTYPE_APP_FILE_TRANSFER_CHUNK_SENT,
@@ -618,6 +620,36 @@ BVStatus BVApp_ConsoleClient::HandleMessageIncoming(std::unique_ptr<std::any> dp
             Render();
         }
     });
+    return BVStatus::BVSTATUS_OK;
+}
+
+BVStatus BVApp_ConsoleClient::HandleFileOffer(std::unique_ptr<std::any> dp)
+{
+    // CLI policy: auto-accept every offer (simplest). The GUI overrides this to
+    // prompt the user. Errors are logged but never propagated (a non-OK return
+    // would abort the mailbox thread).
+    if (dp == nullptr)
+    {
+        return BVStatus::BVSTATUS_OK;
+    }
+    BVTCPFileData res;
+    try
+    {
+        res = std::any_cast<BVTCPFileData>(*dp);
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        LogError("[BVApp_ConsoleClient]: Bad cast in HandleFileOffer: {}", e.what());
+        return BVStatus::BVSTATUS_OK;
+    }
+    std::string meta(res.fdata.begin(), res.fdata.end()); // "service|filename"
+    const auto z = meta.find('\0');
+    if (z != std::string::npos) { meta.resize(z); }
+    const auto bar = meta.find('|');
+    const std::string sender = (bar == std::string::npos) ? meta : meta.substr(0, bar);
+    LogTrace("[BVApp_ConsoleClient]: File offer key={} from {} - auto-accepting.",
+             res.correlationKey, sender);
+    GetConnectionManager().RespondToFileOffer(sender, res.correlationKey, true);
     return BVStatus::BVSTATUS_OK;
 }
 

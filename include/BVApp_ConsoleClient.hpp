@@ -307,6 +307,9 @@ public:
     BVStatus HandleResolvedServices(std::unique_ptr<std::any> dp) override;
     BVStatus HandleServiceDeregistration(std::unique_ptr<std::any>) override;
     BVStatus HandleMessageIncoming(std::unique_ptr<std::any>) override;
+    // New file-offer handler (not part of the BVApp base). Virtual so the GUI
+    // client can override the CLI's auto-accept with a user prompt.
+    virtual BVStatus HandleFileOffer(std::unique_ptr<std::any>);
     BVStatus HandleFileTransferBegin(std::unique_ptr<std::any>) override;
     BVStatus HandleFileChunkSent(std::unique_ptr<std::any>) override;
     BVStatus HandleFileTransferEnd(std::unique_ptr<std::any>) override;

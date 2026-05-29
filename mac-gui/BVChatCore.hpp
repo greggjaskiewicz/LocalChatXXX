@@ -178,9 +178,15 @@ public:
     {
         return service ? service->GetHostData().hostname : std::string{};
     }
-    std::vector<BVReceivedFile> takeReceivedFiles()
+    std::vector<BVFileOffer> takeFileOffers()
     {
-        return app ? app->TakeReceivedFiles() : std::vector<BVReceivedFile>{};
+        return app ? app->TakeFileOffers() : std::vector<BVFileOffer>{};
+    }
+    void acceptFile(std::uint32_t key)  { if (app) { app->AcceptFile(key); } }
+    void rejectFile(std::uint32_t key)  { if (app) { app->RejectFile(key); } }
+    std::string transferStatus()
+    {
+        return app ? app->TransferStatus() : std::string{};
     }
 
 private:

@@ -16,11 +16,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) uint64_t  timestamp;
 @end
 
-/// A file that has finished arriving (already on disk), awaiting Keep/Discard.
-@interface BVReceivedFileItem : NSObject
-@property (nonatomic, copy) NSString *fileName;
-@property (nonatomic, copy) NSString *sender;
-@property (nonatomic, copy) NSString *path;
+/// An incoming file offer, surfaced as the transfer begins (Accept/Reject).
+@interface BVFileOfferItem : NSObject
+@property (nonatomic, assign) uint32_t correlationKey;
+@property (nonatomic, copy)   NSString *fileName;
+@property (nonatomic, copy)   NSString *sender;
+@property (nonatomic, assign) uint64_t  size;   // bytes
 @end
 
 /// Coarse change notifications. The UI re-pulls state in response. All calls
@@ -30,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)chatBridgePeersChanged;      ///< discovered/connected peers changed
 - (void)chatBridgeMessagesChanged;   ///< a message was received or sent
 - (void)chatBridgeFileProgress;      ///< a file transfer made progress
-- (void)chatBridgeFileReceived;      ///< a file finished arriving (drain via -takeReceivedFiles)
+- (void)chatBridgeFileOffered;       ///< a file offer arrived (drain via -takeFileOffers)
 @end
 
 @interface BVChatBridge : NSObject
@@ -52,10 +53,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)sendText:(NSString *)text to:(NSString *)peer;
 - (BOOL)sendFile:(NSString *)filePath to:(NSString *)peer;
 
-/// Files that arrived since the last call (each awaiting Keep/Discard).
-- (NSArray<BVReceivedFileItem *> *)takeReceivedFiles;
-/// Discard a received file by deleting it from disk. Returns YES on success.
-- (BOOL)discardFileAtPath:(NSString *)path;
+/// File offers that arrived since the last call (each awaiting Accept/Reject).
+- (NSArray<BVFileOfferItem *> *)takeFileOffers;
+/// Accept an offered file (it is kept). Reject deletes it (now or on arrival).
+- (void)acceptFile:(uint32_t)correlationKey;
+- (void)rejectFile:(uint32_t)correlationKey;
+
+/// Latest file-transfer status line, e.g. "Receiving x.png… 45%" / "Sent y.png".
+- (NSString *)transferStatus;
 
 - (NSString *)thisHostname;
 
